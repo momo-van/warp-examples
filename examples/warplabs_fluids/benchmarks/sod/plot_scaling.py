@@ -1,9 +1,9 @@
 """
-Plot throughput and memory from the last WSL2 benchmark run.
-Saves plot_throughput.png and plot_memory.png to benchmarks/scaling/.
+Plot throughput and memory from hardcoded benchmark results.
+Saves sod_scaling.png and sod_memory.png.
 
-Run from examples/warplabs_fluids/:
-  python benchmarks/scaling/plot_results.py
+Run from examples/warplabs_fluids/ (no GPU needed):
+  python benchmarks/sod/plot_scaling.py
 """
 
 from pathlib import Path
@@ -38,7 +38,7 @@ style = {
 }
 
 subtitle = (
-    "1-D Euler  ·  WENO3-HLLC-RK2 (fused)  ·  200 steps, median of 5 runs  ·  "
+    "1-D Euler  ·  Sod shock tube  ·  WENO3-HLLC-RK2 (fused)  ·  200 steps, median of 5 runs  ·  "
     "WSL2 Ubuntu 22.04  ·  RTX 5000 Ada  ·  Warp 1.12.1  ·  JAX 0.6.2"
 )
 
@@ -49,11 +49,11 @@ for name, tp in throughput.items():
 ax.set_xscale("log", base=2); ax.set_yscale("log", base=2)
 ax.set_xlabel("Number of cells", fontsize=12)
 ax.set_ylabel("Throughput  (Mcell-updates / s)", fontsize=12)
-ax.set_title("Throughput  vs  number of cells", fontsize=13, pad=10)
+ax.set_title("Sod  —  throughput vs grid size", fontsize=13, pad=10)
 ax.legend(fontsize=11); ax.grid(True, which="both", lw=0.4, alpha=0.5)
 ax.set_xticks(CELLS); ax.set_xticklabels([f"{n:,}" for n in CELLS], rotation=35, ha="right", fontsize=8)
 fig.tight_layout()
-out = OUT / "plot_throughput.png"
+out = OUT / "sod_scaling.png"
 fig.savefig(out, dpi=150, bbox_inches="tight"); plt.close(fig)
 print(f"Saved -> {out}")
 
@@ -61,9 +61,9 @@ fig, ax = plt.subplots(figsize=(9, 6))
 fig.suptitle(subtitle, fontsize=8, color="0.4")
 for name, mems in memory_mib.items():
     s = style[name]
-    N_meas=[n for n,m in zip(CELLS,mems) if m is not None]
-    m_meas=[m for m in mems if m is not None]
-    N_low =[n for n,m in zip(CELLS,mems) if m is None]
+    N_meas = [n for n,m in zip(CELLS, mems) if m is not None]
+    m_meas = [m for m in mems if m is not None]
+    N_low  = [n for n,m in zip(CELLS, mems) if m is None]
     ax.plot(N_meas, m_meas, **s, label=f"{name} (measured)")
     if N_low:
         ax.scatter(N_low, [0.5]*len(N_low), marker="v", color=s["color"], s=40, zorder=5,
@@ -73,11 +73,11 @@ ax.plot(CELLS, theory_mib, color="0.55", ls=":", lw=1.4, marker=".", ms=5,
 ax.set_xscale("log", base=2); ax.set_yscale("log", base=2)
 ax.set_xlabel("Number of cells", fontsize=12)
 ax.set_ylabel("Peak GPU memory  Δ (MiB)", fontsize=12)
-ax.set_title("GPU memory footprint  vs  number of cells\n(JAX with XLA_PYTHON_CLIENT_PREALLOCATE=false)",
+ax.set_title("Sod  —  GPU memory vs grid size\n(JAX with XLA_PYTHON_CLIENT_PREALLOCATE=false)",
              fontsize=12, pad=10)
 ax.legend(fontsize=10, loc="upper left"); ax.grid(True, which="both", lw=0.4, alpha=0.5)
 ax.set_xticks(CELLS); ax.set_xticklabels([f"{n:,}" for n in CELLS], rotation=35, ha="right", fontsize=8)
 fig.tight_layout()
-out = OUT / "plot_memory.png"
+out = OUT / "sod_memory.png"
 fig.savefig(out, dpi=150, bbox_inches="tight"); plt.close(fig)
 print(f"Saved -> {out}")
