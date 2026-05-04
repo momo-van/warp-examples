@@ -7,7 +7,7 @@ Uses XLA_PYTHON_CLIENT_PREALLOCATE=false for honest JAX measurements.
 Run inside the Python 3.11 JaxFluids venv on WSL2:
   source /root/venv-jf/bin/activate
   cd examples/warplabs_fluids
-  XLA_PYTHON_CLIENT_PREALLOCATE=false python benchmarks/memory_comparison.py
+  XLA_PYTHON_CLIENT_PREALLOCATE=false python benchmarks/convergence/memory_comparison.py
 """
 
 import json, sys, subprocess, tempfile, gc, time
@@ -18,7 +18,8 @@ import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 
-ROOT   = Path(__file__).parent.parent
+ROOT   = Path(__file__).parent.parent.parent
+OUT    = Path(__file__).parent
 JXF_EX = Path("/root/JAXFLUIDS/examples/examples_1D/02_sod_shock_tube")
 
 sys.path.insert(0, str(ROOT))
@@ -31,7 +32,6 @@ GRID_SIZES = [512, 1024, 2048, 4096]
 GAMMA      = 1.4
 T_END      = 0.2
 CFL        = 0.4
-N_STEPS    = 20   # short run, enough to allocate all buffers
 
 
 def _nvml_mem_mib():
@@ -93,7 +93,6 @@ def main():
         Q0, _ = sod_ic(N, GAMMA)
         print(f"\nN = {N}", flush=True)
 
-        # ── JaxFluids ─────────────────────────────────────────────────────────
         if jxf_ok:
             try:
                 from jaxfluids import InputManager, InitializationManager, SimulationManager
@@ -117,7 +116,6 @@ def main():
                 print(f"  JaxFluids  ERROR: {e}")
                 mem["JaxFluids\n(WENO5-Z, f64)"].append(None)
 
-        # ── JAX CUDA ──────────────────────────────────────────────────────────
         try:
             import jax
             def _jax():
@@ -136,7 +134,6 @@ def main():
             print(f"  JAX CUDA   ERROR: {e}")
             mem["JAX CUDA\n(WENO3, f32)"].append(None)
 
-        # ── Warp CUDA ─────────────────────────────────────────────────────────
         try:
             def _warp():
                 solver = WarpEuler1D(N, dx, gamma=GAMMA, bc="outflow", device="cuda")
@@ -152,7 +149,6 @@ def main():
             print(f"  Warp CUDA  ERROR: {e}")
             mem["Warp CUDA\n(WENO3, f32)"].append(None)
 
-    # ── table ─────────────────────────────────────────────────────────────────
     print("\n── GPU memory delta (MiB) ──────────────────────────────────────────")
     print(f"{'N':>6}", end="")
     for name in mem:
@@ -165,13 +161,9 @@ def main():
             print(f"  {str(v) if v is not None else '<1':>22}", end="")
         print()
 
-    # ── theory overlay ────────────────────────────────────────────────────────
-    # JAX f32 theoretical: 2 arrays × 3 vars × N × 4 bytes
     jax_theory = [2 * 3 * N * 4 / 1024**2 for N in GRID_SIZES]
-    # JaxFluids f64 theoretical: ~8 arrays × 5 vars × N × 8 bytes (rough estimate)
     jxf_theory = [8 * 5 * N * 8 / 1024**2 for N in GRID_SIZES]
 
-    # ── plot ──────────────────────────────────────────────────────────────────
     colors = {
         "JaxFluids\n(WENO5-Z, f64)": "#e07b00",
         "JAX CUDA\n(WENO3, f32)":    "#d55e00",
@@ -196,7 +188,6 @@ def main():
             ax.scatter(tri, [0.4]*len(tri), marker="v", color=colors[name],
                        s=50, zorder=5)
 
-    # theory lines
     ax.plot(GRID_SIZES, jax_theory, ls=":", color="#aaa", lw=1.0,
             label="JAX f32 theory  (2×3×N×4 B)")
     ax.plot(GRID_SIZES, jxf_theory, ls="--", color="#ccc", lw=1.0,
@@ -216,7 +207,7 @@ def main():
     ax.legend(fontsize=9); ax.grid(True, which="both", lw=0.4, alpha=0.5)
     plt.tight_layout()
 
-    out = ROOT / "benchmarks" / "memory_comparison.png"
+    out = OUT / "memory_comparison.png"
     fig.savefig(out, dpi=150, bbox_inches="tight")
     plt.close(fig)
     print(f"\nSaved -> {out}")

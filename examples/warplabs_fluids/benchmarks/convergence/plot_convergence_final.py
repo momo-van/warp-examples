@@ -7,7 +7,7 @@ Generates convergence_study.png with three panels:
 
 Run on Windows (no JaxFluids venv needed):
   cd examples/warplabs_fluids
-  python benchmarks/plot_convergence_final.py
+  python benchmarks/convergence/plot_convergence_final.py
 """
 
 from pathlib import Path
@@ -16,7 +16,7 @@ import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 
-ROOT = Path(__file__).parent.parent
+OUT = Path(__file__).parent
 
 # ── Data from benchmark runs ──────────────────────────────────────────────────
 NS = [64, 128, 256, 512, 1024]
@@ -146,7 +146,7 @@ ax.set_xticks(NS); ax.set_xticklabels(NS, fontsize=8)
 ax.legend(fontsize=8, loc="lower left"); ax.grid(True, which="both", lw=0.4, alpha=0.5)
 
 plt.tight_layout()
-out = ROOT / "benchmarks" / "convergence_study.png"
+out = OUT / "convergence_study.png"
 fig.savefig(out, dpi=150, bbox_inches="tight")
 plt.close(fig)
 print(f"Saved -> {out}")

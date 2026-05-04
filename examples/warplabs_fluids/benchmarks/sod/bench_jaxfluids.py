@@ -10,7 +10,7 @@ Measures throughput (Mcell/s) and L1 accuracy vs exact Riemann solution.
 
 Run from examples/warplabs_fluids/ inside the Python 3.11 venv:
   source /root/venv-jf/bin/activate
-  python benchmarks/bench_jaxfluids.py
+  python benchmarks/sod/bench_jaxfluids.py
 """
 
 import json, sys, time, tempfile, shutil, os, gc
@@ -21,7 +21,8 @@ import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 
-ROOT    = Path(__file__).parent.parent
+ROOT    = Path(__file__).parent.parent.parent
+OUT     = Path(__file__).parent
 JXF_EX  = Path("/root/JAXFLUIDS/examples/examples_1D/02_sod_shock_tube")
 
 sys.path.insert(0, str(ROOT))
@@ -94,14 +95,11 @@ def bench_jaxfluids(N, case_tmpl, num_path, tmp_dir):
         jax.block_until_ready(buffers)
         times.append(time.perf_counter() - t0)
 
-    # step count: JaxFluids logs it; approximate from CFL + dt
-    # use median time
     t_med = float(np.median(times))
 
-    # estimate steps: JaxFluids uses CFL=0.5, WENO5 (halo=4), dt ~ CFL*dx/a_max
+    # estimate steps from CFL + dt
     dx     = 1.0 / N
     a_max  = np.sqrt(GAMMA * 1.0 / 1.0)
-    # JaxFluids uses its own CFL from numerical_setup; read it
     try:
         with open(num_path) as f: ns = json.load(f)
         cfl_jxf = ns["conservatives"]["time_integration"].get("CFL", 0.5)
@@ -119,7 +117,6 @@ def bench_jaxfluids(N, case_tmpl, num_path, tmp_dir):
         case_name = "sod"
         h5_pattern = str(run_dir / case_name / "domain" / "data_*.h5")
         h5_files = sorted(glob.glob(h5_pattern))
-        # pick the file closest to T_END (last one = final output)
         h5_final = max(h5_files, key=lambda p: float(
             Path(p).stem.replace("data_", "")))
         with h5py.File(h5_final, "r") as f:
@@ -147,7 +144,7 @@ def bench_warp(N):
     times = []
     for _ in range(N_BENCH):
         solver.initialize(Q0)
-        t0 = time.perf_counter()
+        t0      = time.perf_counter()
         n  = solver.run(T_END, CFL_WARP)
         wp.synchronize()
         times.append(time.perf_counter() - t0)
@@ -174,7 +171,7 @@ def bench_jax_ref(N):
         times = []
         for _ in range(N_BENCH):
             solver.initialize(Q0)
-            t0 = time.perf_counter()
+            t0      = time.perf_counter()
             n  = solver.run(T_END, CFL_WARP)
             jax.block_until_ready(solver._Q)
             times.append(time.perf_counter() - t0)
@@ -214,7 +211,6 @@ def main():
         dx = 1.0 / N
         print(f"\nN = {N:>6}", flush=True)
 
-        # ── JaxFluids ─────────────────────────────────────────────────────
         if jxf_ok:
             try:
                 tp, rho, u, p, ns, tm = bench_jaxfluids(
@@ -230,7 +226,6 @@ def main():
             except Exception as e:
                 print(f"  JaxFluids      ERROR: {e}")
 
-        # ── JAX CUDA (our reference) ───────────────────────────────────────
         try:
             tp, rho, u, p, ns, tm = bench_jax_ref(N)
             results["JAX CUDA (ours)"]["N"].append(N)
@@ -244,7 +239,6 @@ def main():
         except Exception as e:
             print(f"  JAX CUDA (ours) ERROR: {e}")
 
-        # ── Warp CUDA ──────────────────────────────────────────────────────
         try:
             tp, rho, u, p, ns, tm, x = bench_warp(N)
             results["Warp CUDA"]["N"].append(N)
@@ -262,7 +256,6 @@ def main():
     shutil.rmtree(tmp_dir, ignore_errors=True)
 
     # ── accuracy table at N=512 ───────────────────────────────────────────────
-    dx = 1.0 / 512
     Q0, x512 = sod_ic(512, GAMMA)
     rho_ex, u_ex, p_ex = sod_exact(T_END, x512, GAMMA)
 
@@ -274,6 +267,7 @@ def main():
         "JAX CUDA (ours)":"WENO3   + HLLC + RK2 (f32)",
         "Warp CUDA":      "WENO3   + HLLC + RK2 (f32)",
     }
+    dx = 1.0 / 512
     for name, r in results.items():
         if r["rho"] is None:
             print(f"{name:<22}  {'N/A':>10}  {'N/A':>10}  {'N/A':>10}  {schemes.get(name,'')}")
@@ -318,7 +312,7 @@ def main():
     ax.set_xticks(GRID_SIZES)
     ax.set_xticklabels([f"{n:,}" for n in GRID_SIZES], rotation=30, ha="right", fontsize=9)
     plt.tight_layout()
-    out = ROOT / "benchmarks" / "jaxfluids_throughput.png"
+    out = OUT / "jaxfluids_throughput.png"
     fig.savefig(out, dpi=150, bbox_inches="tight"); plt.close(fig)
     print(f"\nSaved -> {out}")
 
@@ -339,7 +333,7 @@ def main():
         ax.set_xlabel("x"); ax.set_title(fname)
         ax.legend(fontsize=7); ax.grid(True, lw=0.4, alpha=0.5)
     plt.tight_layout()
-    out2 = ROOT / "benchmarks" / "jaxfluids_profiles.png"
+    out2 = OUT / "jaxfluids_profiles.png"
     fig.savefig(out2, dpi=150, bbox_inches="tight"); plt.close(fig)
     print(f"Saved -> {out2}")
 

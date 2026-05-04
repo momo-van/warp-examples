@@ -9,7 +9,7 @@ Two metrics at N = 64, 128, 256, 512, 1024:
 Run inside the Python 3.11 JaxFluids venv:
   source /root/venv-jf/bin/activate
   cd examples/warplabs_fluids
-  python benchmarks/convergence_study.py
+  python benchmarks/convergence/convergence_study.py
 """
 
 import json, sys, tempfile, gc
@@ -20,7 +20,8 @@ import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 
-ROOT   = Path(__file__).parent.parent
+ROOT   = Path(__file__).parent.parent.parent
+OUT    = Path(__file__).parent
 JXF_EX = Path("/root/JAXFLUIDS/examples/examples_1D/02_sod_shock_tube")
 
 sys.path.insert(0, str(ROOT))
@@ -34,9 +35,6 @@ GAMMA      = 1.4
 T_END      = 0.2
 CFL        = 0.4
 
-# Sod rarefaction fan at t=0.2: smooth region between head and tail
-# Head speed: u_L - c_L = 0 - sqrt(1.4) = -1.183 → x_head = 0.5 - 1.183*0.2 = 0.263
-# Tail speed: u_star - c_star ≈ 0.927 - 0.998 = -0.071 → x_tail = 0.5 - 0.071*0.2 = 0.486
 X_SMOOTH_LO = 0.27   # just inside rarefaction head
 X_SMOOTH_HI = 0.47   # just inside rarefaction tail
 
@@ -114,8 +112,6 @@ def run_jax(N):
     return rho, u, p
 
 
-# ── slope fit ─────────────────────────────────────────────────────────────────
-
 def fit_slope(ns, errors):
     log_n = np.log2(np.array(ns, float))
     log_e = np.log2(np.array(errors, float))
@@ -188,7 +184,6 @@ def main():
             data[name]["smooth"].append(s)
             print(f"    {name.split(chr(10))[0]:<28}  global={g:.3e}  smooth={s:.3e}")
 
-    # ── tables ────────────────────────────────────────────────────────────────
     for metric, key in [("Global L1(rho)", "global"), ("Smooth-region L1(rho)", "smooth")]:
         print(f"\n── {metric} ──────────────────────────────────")
         print(f"{'N':>6}", end="")
@@ -213,7 +208,6 @@ def main():
             ss = fit_slope(d["N"], d["smooth"])
             print(f"  {name.split(chr(10))[0]:<28}  global slope={sg:.2f}  smooth slope={ss:.2f}")
 
-    # ── figure: 2 rows ────────────────────────────────────────────────────────
     colors  = {
         "JaxFluids\n(WENO5-Z+HLLC+RK3, f64)": "#e07b00",
         "JAX CUDA\n(WENO3+HLLC+RK2, f32)":    "#d55e00",
@@ -237,8 +231,7 @@ def main():
          "All solvers converge ~O(N⁻¹): discontinuities cap convergence rate regardless of scheme order.",
          [(-1, ":", "O(N⁻¹)"), (-3, "-.", "O(N⁻³)")]),
         ("smooth", f"Smooth-region L1(ρ) — rarefaction fan only  (x ∈ [{X_SMOOTH_LO}, {X_SMOOTH_HI}])",
-         "True scheme order visible: WENO5-Z (f64) maintains high-order convergence; "
-         "WENO3 (f32) hits float32 precision floor at large N.",
+         "Still ~O(N⁻¹): fan head/tail are C⁰ characteristics — smooth region bounded by non-smooth features.",
          [(-1, ":", "O(N⁻¹)"), (-3, "-.", "O(N⁻³)"), (-5, "--", "O(N⁻⁵)")]),
     ]
 
@@ -256,20 +249,12 @@ def main():
             ax.plot(ns, es, marker=markers[name], ls=ls_map[name],
                     color=colors[name], lw=1.8, ms=7, label=lbl)
 
-        # anchor reference lines at mid-N of Warp CUDA
         warp_key = "Warp CUDA\n(WENO3+HLLC+RK2, f32)"
         if data[warp_key][key]:
             e_mid = np.interp(mid, data[warp_key]["N"], data[warp_key][key])
             for order, lsty, lbl in refs:
                 ref = e_mid * (n_ref / mid) ** order
                 ax.plot(n_ref, ref, ls=lsty, color="gray", lw=1.0, label=lbl)
-
-        # float32 precision floor line (smooth row only)
-        if key == "smooth":
-            n_zone = (X_SMOOTH_HI - X_SMOOTH_LO)  # ~0.2 of domain
-            floor = 1.2e-7 * n_zone                # float32 eps × zone fraction
-            ax.axhline(floor, color="gray", ls=":", lw=0.8, alpha=0.6,
-                       label=f"float32 ε floor (~{floor:.1e})")
 
         ax.set_xscale("log", base=2)
         ax.set_yscale("log", base=2)
@@ -290,7 +275,7 @@ def main():
         fontsize=12, fontweight="bold", y=1.01
     )
     plt.tight_layout()
-    out = ROOT / "benchmarks" / "convergence_study.png"
+    out = OUT / "convergence_study.png"
     fig.savefig(out, dpi=150, bbox_inches="tight")
     plt.close(fig)
     print(f"\nSaved -> {out}")
