@@ -120,17 +120,22 @@ def main():
         js = f"{j:.2f}" if j else "--"
         print(f"{N:>6}  {ws:>12}  {js:>12}  {sp:>8}")
 
-    # ── throughput plot ───────────────────────────────────────────────────────
-    style = {
+    # throughput style: markers OK (only 3 points)
+    tp_style = {
         "Warp CUDA": dict(color="#009e73", marker="^", ls="-",  lw=1.8, ms=7),
         "JAX CUDA":  dict(color="#d55e00", marker="o", ls="--", lw=1.8, ms=7),
+    }
+    # profile style: clean solid/dashed lines, no markers (1000+ points per line)
+    prof_style = {
+        "Warp CUDA": dict(color="#009e73", ls="-",  lw=1.8),
+        "JAX CUDA":  dict(color="#d55e00", ls="--", lw=1.5),
     }
 
     fig, ax = plt.subplots(figsize=(7, 5))
     for name, runs in results.items():
         ns_list = [r["N"]  for r in runs]
         tp_list = [r["tp"] for r in runs]
-        ax.plot(ns_list, tp_list, **style[name], label=name)
+        ax.plot(ns_list, tp_list, **tp_style[name], label=name)
     ax.set_xscale("log", base=2)
     ax.set_yscale("log", base=2)
     ax.set_xlabel("Number of cells  N", fontsize=12)
@@ -166,7 +171,7 @@ def main():
             continue
         x_ref = r["x"]
         for ax, fname, fkey in zip(axes, field_names, field_keys):
-            ax.plot(r["x"], r[fkey], **style[name], label=name, alpha=0.9)
+            ax.plot(r["x"], r[fkey], **prof_style[name], label=name, alpha=0.9)
 
     # overlay IC (density only)
     Q0_ic, x_ic = shu_ic(N_prof, GAMMA)
