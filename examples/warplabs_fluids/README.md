@@ -68,48 +68,16 @@ rho_out = solver.state[0]
 
 ---
 
-## Validation
+## Benchmarks
 
-Two canonical 1-D test cases, both run against JaxFluids (WENO5-Z + HLLC + SSP-RK3, float64).
+| Directory | Test case | What's in it |
+|---|---|---|
+| [`benchmarks/sod/`](benchmarks/sod/) | Sod shock tube | Profiles vs exact Riemann, convergence study, throughput vs JaxFluids, GPU scaling |
+| [`benchmarks/shu_osher/`](benchmarks/shu_osher/) | Shu-Osher density wave | Profiles, self-convergence, throughput vs JaxFluids, GPU scaling |
 
-### Sod shock tube
-
-Membrane at x = 0.5 bursts at t = 0, producing a leftward rarefaction fan, a contact discontinuity, and a rightward shock. Exact Riemann solution available (Toro 2009).
-
-![Sod profiles](benchmarks/sod/jaxfluids_profiles.png)
-
-Warp f32 and JaxFluids f64 produce **effectively identical results**. The 2.3% L1 difference is the cost of float32 vs float64 — negligible at shock-capturing accuracy where discretization error dominates.
-
-| | L1(ρ) | L1(u) | L1(p) |
-|---|---|---|---|
-| JaxFluids f64 | 8.52e-4 | 1.87e-3 | 6.00e-4 |
-| Warp f32 | 8.72e-4 | 1.90e-3 | 6.60e-4 |
-
-Convergence slope: ~O(N⁻⁰·⁹⁵) for both — identical.
-
-### Shu-Osher density wave
-
-Mach-3 shock interacting with a sinusoidal density field. Designed by Shu & Osher (1989) to stress-test high-order schemes — post-shock fine structure requires low numerical dissipation to resolve.
-
-![Shu-Osher profiles](benchmarks/shu_osher/jaxfluids_profiles.png)
-
----
-
-## Performance
-
-Benchmarks run on RTX 5000 Ada, WSL2 Ubuntu 22.04. Same GPU, same algorithm — apples-to-apples.
-
-| Test case | Warp f32 | JaxFluids f64 | Speedup |
-|---|---|---|---|
-| Sod  (N = 4 096) | 13.1 Mcell/s | 0.07 Mcell/s | **183×** |
-| Shu-Osher  (N = 4 096) | 12.5 Mcell/s | 0.11 Mcell/s | **111×** |
-| Sod  (N = 131 072) | ~767 Mcell/s | — | — |
-
-Peak throughput is still bandwidth-scaling at N = 131 072 — the GPU is not yet saturated.
-
-![Throughput scaling](benchmarks/sod/jaxfluids_throughput.png)
-
-**Memory footprint:** Warp holds a flat 32 MiB regardless of N (cudaMallocAsync pool, pre-allocated once). JaxFluids grows linearly with N.
+Both run against JaxFluids (WENO5-Z + HLLC + SSP-RK3, float64) on RTX 5000 Ada.
+Warp f32 and JaxFluids f64 produce effectively identical results — the 2.3% L1 gap is the cost of float32 vs float64, negligible at shock-capturing accuracy.
+Warp CUDA throughput: **183× faster** (Sod) and **111× faster** (Shu-Osher) vs JaxFluids at N = 4 096.
 
 ---
 
