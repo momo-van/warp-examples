@@ -1,9 +1,8 @@
 """
-Build a 7-slide NVIDIA-style deck for warplabs-fluids WENO5-Z apples-to-apples results.
+8-slide deck — warplabs-fluids WENO5-Z apples-to-apples results.
+White background · Segoe UI · larger type.
 
-Run from examples/warplabs_fluids/:
-  python build_deck.py
-Outputs: warplabs_fluids_deck.pptx
+python build_deck.py   →   warplabs_fluids_deck.pptx
 """
 
 from pathlib import Path
@@ -19,321 +18,479 @@ SOD   = BENCH / "sod"
 SHO   = BENCH / "shu_osher"
 OUT   = HERE / "warplabs_fluids_deck.pptx"
 
+# ── palette ───────────────────────────────────────────────────────────────────
 GREEN  = RGBColor(0x76, 0xB9, 0x00)
-ORANGE = RGBColor(0xE0, 0x7B, 0x00)
-BLACK  = RGBColor(0x00, 0x00, 0x00)
+GDARK  = RGBColor(0x3E, 0x6A, 0x00)
+GLOW   = RGBColor(0xE8, 0xF5, 0xCC)
+ORANGE = RGBColor(0xD4, 0x6B, 0x00)
+OLIGHT = RGBColor(0xFB, 0xEF, 0xDD)
 WHITE  = RGBColor(0xFF, 0xFF, 0xFF)
-DARK   = RGBColor(0x1A, 0x1A, 0x1A)
-PANEL  = RGBColor(0x2A, 0x2A, 0x2A)
-GRAY   = RGBColor(0xA0, 0xA0, 0xA0)
-LGRAY  = RGBColor(0x32, 0x32, 0x32)
+INK    = RGBColor(0x12, 0x12, 0x12)
+DKGRAY = RGBColor(0x3A, 0x3A, 0x3A)
+GRAY   = RGBColor(0x80, 0x80, 0x80)
+LGRAY  = RGBColor(0xCC, 0xCC, 0xCC)
+PANEL  = RGBColor(0xF4, 0xF5, 0xF6)
+PANEL2 = RGBColor(0xE6, 0xE8, 0xEA)
 
+FONT = "Segoe UI"
 SW, SH = Inches(13.333), Inches(7.5)
 
-# ── helpers ───────────────────────────────────────────────────────────────────
+# ── primitives ────────────────────────────────────────────────────────────────
 
 def new_prs():
     prs = Presentation()
-    prs.slide_width = SW
-    prs.slide_height = SH
+    prs.slide_width = SW; prs.slide_height = SH
     return prs
 
 def blank_slide(prs):
     return prs.slides.add_slide(prs.slide_layouts[6])
 
-def fill_bg(s, color=DARK):
+def fill_bg(s, color=WHITE):
     bg = s.background; bg.fill.solid(); bg.fill.fore_color.rgb = color
 
-def rect(s, l, t, w, h, bg=None, border=None):
+def rect(s, l, t, w, h, bg=None, border=None, bw=1.0):
     sh = s.shapes.add_shape(1, Inches(l), Inches(t), Inches(w), Inches(h))
-    sh.line.fill.background()
     if bg:
         sh.fill.solid(); sh.fill.fore_color.rgb = bg
     else:
         sh.fill.background()
     if border:
-        sh.line.color.rgb = border; sh.line.width = Pt(1)
+        sh.line.color.rgb = border; sh.line.width = Pt(bw)
+    else:
+        sh.line.fill.background()
     return sh
 
-def txt(s, text, l, t, w, h, size=16, bold=False, italic=False,
-        color=WHITE, align=PP_ALIGN.LEFT):
+def txt(s, text, l, t, w, h, sz=18, bold=False, italic=False,
+        color=INK, align=PP_ALIGN.LEFT):
     tb = s.shapes.add_textbox(Inches(l), Inches(t), Inches(w), Inches(h))
     tf = tb.text_frame; tf.word_wrap = True
     p = tf.paragraphs[0]; p.alignment = align
     r = p.add_run(); r.text = text
-    r.font.size = Pt(size); r.font.bold = bold; r.font.italic = italic
+    r.font.name = FONT; r.font.size = Pt(sz)
+    r.font.bold = bold; r.font.italic = italic
     r.font.color.rgb = color
     return tb
 
-def ml(s, lines, l, t, w, h, ds=14):
+def ml(s, lines, l, t, w, h, ds=15, dc=INK):
     tb = s.shapes.add_textbox(Inches(l), Inches(t), Inches(w), Inches(h))
     tf = tb.text_frame; tf.word_wrap = True
     first = True
     for item in lines:
-        if isinstance(item, str):
-            text, size, color, bold = item, ds, WHITE, False
-        else:
-            text = item[0]
-            size  = item[1] if len(item) > 1 else ds
-            color = item[2] if len(item) > 2 else WHITE
-            bold  = item[3] if len(item) > 3 else False
+        text = item[0] if not isinstance(item, str) else item
+        sz   = item[1] if not isinstance(item, str) and len(item) > 1 else ds
+        c    = item[2] if not isinstance(item, str) and len(item) > 2 else dc
+        bold = item[3] if not isinstance(item, str) and len(item) > 3 else False
         p = tf.paragraphs[0] if first else tf.add_paragraph()
         first = False
         r = p.add_run(); r.text = text
-        r.font.size = Pt(size); r.font.bold = bold; r.font.color.rgb = color
-
-def green_bar(s):
-    rect(s, 0, 0, 13.333, 0.08, bg=GREEN)
-
-def bottom_bar(s):
-    rect(s, 0, 7.3, 13.333, 0.2, bg=PANEL)
-    txt(s, "NVIDIA  ·  Warp  ·  warplabs-fluids  |  Phase 1",
-        0.2, 7.32, 9, 0.18, size=8, color=GRAY)
-    txt(s, "RTX 5000 Ada  ·  Warp 1.12.1  ·  JAX 0.6.2",
-        9.8, 7.32, 3.3, 0.18, size=8, color=GRAY, align=PP_ALIGN.RIGHT)
+        r.font.name = FONT; r.font.size = Pt(sz)
+        r.font.bold = bold; r.font.color.rgb = c
 
 def img(s, path, l, t, w, h=None):
     p = Path(path)
-    if not p.exists():
-        return
-    if h is not None:
-        s.shapes.add_picture(str(p), Inches(l), Inches(t),
-                             width=Inches(w), height=Inches(h))
-    else:
-        s.shapes.add_picture(str(p), Inches(l), Inches(t), width=Inches(w))
+    if not p.exists(): return
+    kw = {"width": Inches(w)}
+    if h is not None: kw["height"] = Inches(h)
+    s.shapes.add_picture(str(p), Inches(l), Inches(t), **kw)
 
-def chip(s, text, l, t, w=2.8, color=GREEN, tc=BLACK):
-    rect(s, l, t, w, 0.28, bg=color)
-    txt(s, text, l+0.08, t+0.02, w-0.1, 0.26, size=10, bold=True, color=tc)
+def hline(s, y, l=0.4, w=12.55, color=LGRAY, thickness=0.015):
+    rect(s, l, y, w, thickness, bg=color)
 
-def slide_header(s, title, chip_text, chip_w=3.0, chip2=None, chip2_x=None, chip2_w=None):
-    green_bar(s)
-    txt(s, title, 0.4, 0.12, 12.5, 0.5, size=26, bold=True, color=WHITE)
-    chip(s, chip_text, 0.4, 0.72, w=chip_w)
-    if chip2 and chip2_x:
-        chip(s, chip2, chip2_x, 0.72, w=chip2_w or 2.0, color=ORANGE)
-    bottom_bar(s)
+def green_bar(s, h=0.12):
+    rect(s, 0, 0, 13.333, h, bg=GREEN)
 
-# ── CSV readers ───────────────────────────────────────────────────────────────
+def bottom_bar(s):
+    rect(s, 0, 7.28, 13.333, 0.22, bg=PANEL2)
+    txt(s, "NVIDIA  ·  Warp  ·  warplabs-fluids  ·  Phase 1",
+        0.35, 7.30, 9, 0.20, sz=10, color=GRAY)
+    txt(s, "RTX 5000 Ada  ·  Warp 1.12.1  ·  JAX 0.6.2",
+        9.5, 7.30, 3.6, 0.20, sz=10, color=GRAY, align=PP_ALIGN.RIGHT)
 
-def read_tp(csv_path):
+def slide_header(s, title):
+    fill_bg(s); green_bar(s); bottom_bar(s)
+    txt(s, title, 0.42, 0.16, 12.5, 0.64, sz=34, bold=True, color=INK)
+    hline(s, 0.90)
+
+def tag(s, text, l, t, w, bg=GREEN, tc=WHITE):
+    rect(s, l, t, w, 0.32, bg=bg)
+    txt(s, text, l+0.12, t+0.05, w-0.24, 0.26, sz=12, bold=True, color=tc)
+
+# ── CSV helpers ───────────────────────────────────────────────────────────────
+
+def read_tp(path):
     d = {}
-    with open(csv_path, newline='', encoding='utf-8') as f:
+    with open(path, newline='', encoding='utf-8') as f:
         for row in csv.DictReader(f):
             d.setdefault(row['solver'], {})[int(row['N'])] = float(row['throughput_Mcells'])
     return d
 
-def speedup_at(csv_path, N=4096):
-    d = read_tp(csv_path)
-    warp = next(v for k, v in d.items() if 'Warp' in k)
-    jf   = next(v for k, v in d.items() if 'Jax'  in k)
-    return warp[N] / jf[N]
+def speedup(path, N=4096):
+    d = read_tp(path)
+    w = next(v for k, v in d.items() if 'Warp' in k)
+    j = next(v for k, v in d.items() if 'Jax'  in k)
+    return w[N] / j[N]
 
-def read_acc(csv_path):
-    rows = {}
-    with open(csv_path, newline='', encoding='utf-8') as f:
-        for row in csv.DictReader(f):
-            rows[row['solver']] = row
-    return rows
+def read_acc(path):
+    with open(path, newline='', encoding='utf-8') as f:
+        return {r['solver']: r for r in csv.DictReader(f)}
 
 # ── live numbers ──────────────────────────────────────────────────────────────
 
-sod_ratio = speedup_at(SOD / "bench_jaxfluids_throughput.csv")
-sho_ratio = speedup_at(SHO / "bench_jaxfluids_throughput.csv")
-acc       = read_acc(SOD / "bench_jaxfluids_accuracy.csv")
+sod_x = speedup(SOD / "bench_jaxfluids_throughput.csv")
+sho_x = speedup(SHO / "bench_jaxfluids_throughput.csv")
+acc   = read_acc(SOD / "bench_jaxfluids_accuracy.csv")
 jf_l1 = float(next(v['L1_rho'] for k, v in acc.items() if 'Jax'  in k))
 wp_l1 = float(next(v['L1_rho'] for k, v in acc.items() if 'Warp' in k))
-acc_gap = abs(wp_l1 - jf_l1) / jf_l1 * 100
+gap   = abs(wp_l1 - jf_l1) / jf_l1 * 100
 
-# ── Slide 1 — Title ───────────────────────────────────────────────────────────
+
+# ══════════════════════════════════════════════════════════════════════════════
+# Slide 1 — Title
+# ══════════════════════════════════════════════════════════════════════════════
 
 def slide_title(prs):
-    s = blank_slide(prs); fill_bg(s); green_bar(s)
+    s = blank_slide(prs); fill_bg(s)
+    green_bar(s, h=0.16)
 
-    rect(s, 0, 0.08, 0.55, 7.22, bg=GREEN)
-    txt(s, "WARP", 0.04, 2.9, 0.48, 1.0, size=22, bold=True,
-        color=BLACK, align=PP_ALIGN.CENTER)
+    # thin left accent
+    rect(s, 0, 0.16, 0.10, 7.12, bg=GREEN)
 
     txt(s, "NVIDIA Warp  vs  JaxFluids",
-        0.75, 1.2, 12.0, 1.0, size=44, bold=True, color=WHITE)
-    txt(s, "Apples-to-Apples  ·  WENO5-Z + HLLC + SSP-RK3  ·  1-D Compressible Euler",
-        0.75, 2.4, 12.0, 0.5, size=20, color=GREEN)
-    txt(s, "Sod Shock Tube  ·  Shu-Osher Density-Wave  ·  Phase 1",
-        0.75, 2.98, 12.0, 0.4, size=14, color=GRAY)
+        0.55, 0.78, 12.5, 1.20, sz=58, bold=True, color=INK)
+    txt(s, "Apples-to-Apples  ·  WENO5-Z + HLLC + SSP-RK3",
+        0.55, 2.08, 12.5, 0.62, sz=26, color=GREEN)
+    txt(s, "1-D Compressible Euler  ·  Sod Shock Tube  ·  Shu-Osher Density-Wave",
+        0.55, 2.78, 12.5, 0.44, sz=16, color=GRAY)
 
-    rect(s, 0.75, 3.5, 11.5, 0.03, bg=GRAY)
+    hline(s, 3.32, l=0.55, w=12.2, color=LGRAY)
 
+    # stat cards
     stats = [
-        (f"{sod_ratio:.0f}×",      "faster than JaxFluids",   "Sod  ·  N=4096 CUDA"),
-        (f"{sho_ratio:.0f}×",      "faster than JaxFluids",   "Shu-Osher  ·  N=4096 CUDA"),
-        (f"< {math.ceil(acc_gap)}%", "L1(ρ) accuracy gap", "f32 vs f64  ·  N=512"),
-        ("f32",                          "Warp precision",          "JaxFluids uses f64"),
+        (f"{sod_x:.0f}×",           "faster than JaxFluids",    "Sod  ·  N = 4 096"),
+        (f"{sho_x:.0f}×",           "faster than JaxFluids",    "Shu-Osher  ·  N = 4 096"),
+        (f"< {math.ceil(gap)}%",    "L1(ρ) accuracy gap",       "Warp f32  vs  JaxFluids f64"),
+        ("f32",                      "Warp precision",            "JaxFluids runs f64"),
     ]
-    bw = 2.7; gap = 0.25; x0 = 0.75
+    cw = 2.88; gp = 0.22; x0 = 0.55
     for i, (num, lbl, sub) in enumerate(stats):
-        x = x0 + i * (bw + gap)
-        rect(s, x, 3.62, bw, 1.5, bg=PANEL)
-        rect(s, x, 3.62, bw, 0.05, bg=GREEN)
-        txt(s, num,  x+0.14, 3.71, bw-0.28, 0.65, size=34, bold=True, color=GREEN)
-        txt(s, lbl,  x+0.14, 4.38, bw-0.28, 0.35, size=12, color=WHITE)
-        txt(s, sub,  x+0.14, 4.75, bw-0.28, 0.3,  size=10, color=GRAY)
+        x = x0 + i * (cw + gp)
+        rect(s, x, 3.46, cw, 1.82, bg=PANEL, border=LGRAY)
+        rect(s, x, 3.46, cw, 0.08, bg=GREEN)
+        txt(s, num,  x+0.20, 3.58, cw-0.40, 0.78, sz=48, bold=True, color=GREEN)
+        txt(s, lbl,  x+0.20, 4.40, cw-0.40, 0.40, sz=14, bold=True, color=INK)
+        txt(s, sub,  x+0.20, 4.82, cw-0.40, 0.40, sz=12, color=GRAY)
 
     txt(s, "RTX 5000 Ada  ·  WSL2 Ubuntu 22.04  ·  Warp 1.12.1  ·  JAX 0.6.2",
-        0.75, 6.95, 11.0, 0.3, size=9, color=GRAY)
+        0.55, 6.98, 12.5, 0.28, sz=11, color=LGRAY)
     bottom_bar(s)
 
 
-# ── Slide 2 — Algorithm Parity ────────────────────────────────────────────────
+# ══════════════════════════════════════════════════════════════════════════════
+# Slide 2 — Algorithm Parity (2-column: Warp vs JaxFluids)
+# ══════════════════════════════════════════════════════════════════════════════
 
 def slide_parity(prs):
-    s = blank_slide(prs); fill_bg(s)
-    slide_header(s, "Algorithm Parity  ·  Closing the Gap",
-                 "IDENTICAL ALGORITHM (EXCEPT PRECISION)", chip_w=4.5)
+    s = blank_slide(prs)
+    slide_header(s, "Algorithm Parity  ·  Warp vs JaxFluids")
 
-    cols = [
-        ("Warp  —  Before",  GRAY,   PANEL),
-        ("Warp  —  Now",     GREEN,  RGBColor(0x0F, 0x1E, 0x00)),
-        ("JaxFluids",             ORANGE, PANEL),
-    ]
-    col_x = [0.35, 4.7, 9.05]; col_w = 4.1
+    # ── column backgrounds ────────────────────────────────────────────────────
+    LEFT_X = 0.42;  COL_W = 5.7
+    RIGHT_X = 7.22; COL_W2 = 5.7
+    ROWS_Y  = 1.62; ROW_H = 0.72; N_ROWS = 6
 
-    for i, (title, tc, bg) in enumerate(cols):
-        rect(s, col_x[i], 1.08, col_w, 0.46, bg=bg, border=tc)
-        txt(s, title, col_x[i]+0.15, 1.13, col_w-0.3, 0.38, size=16, bold=True, color=tc)
+    rect(s, LEFT_X,  ROWS_Y - 0.48, COL_W,  N_ROWS*ROW_H + 0.52, bg=GLOW,  border=GREEN, bw=1.5)
+    rect(s, RIGHT_X, ROWS_Y - 0.48, COL_W2, N_ROWS*ROW_H + 0.52, bg=OLIGHT, border=ORANGE, bw=1.5)
+
+    # column headers
+    rect(s, LEFT_X,  ROWS_Y - 0.48, COL_W,  0.52, bg=GREEN)
+    rect(s, RIGHT_X, ROWS_Y - 0.48, COL_W2, 0.52, bg=ORANGE)
+    txt(s, "Warp  WENO5-Z  ·  f32",    LEFT_X+0.22,  ROWS_Y-0.44, COL_W-0.44,  0.44,
+        sz=20, bold=True, color=WHITE)
+    txt(s, "JaxFluids  WENO5-Z  ·  f64", RIGHT_X+0.22, ROWS_Y-0.44, COL_W2-0.44, 0.44,
+        sz=20, bold=True, color=WHITE)
+
+    # centre "=" badge
+    rect(s, 6.24, ROWS_Y + 0.82, 0.86, 0.86, bg=PANEL2, border=LGRAY)
+    txt(s, "=", 6.24, ROWS_Y + 0.82, 0.86, 0.86,
+        sz=28, bold=True, color=GREEN, align=PP_ALIGN.CENTER)
 
     rows = [
-        ("Reconstruction",   "WENO3  (Jiang-Shu 1996)",  "WENO5-Z  (Borges 2008)",  "WENO5-Z  (Borges 2008)"),
-        ("Riemann Solver",   "HLLC",                     "HLLC",                    "HLLC"),
-        ("Time Integration", "SSP-RK2  (2 stages)",      "SSP-RK3  (3 stages)",     "SSP-RK3  (3 stages)"),
-        ("Ghost cells",      "ng = 2",                   "ng = 3",                  "ng = 3"),
-        ("Precision",        "float32",                  "float32",                 "float64"),
-        ("Stencil width",    "5 cells",                  "7 cells",                 "7 cells"),
-        ("Kernel launches",  "2 / step",                 "3 / step",                "N/A  (XLA JIT)"),
+        ("Reconstruction",    "WENO5-Z  (Borges 2008)",     "WENO5-Z  (Borges 2008)"),
+        ("Riemann Solver",    "HLLC",                        "HLLC"),
+        ("Time Integration",  "SSP-RK3  ·  3 stages",       "SSP-RK3  ·  3 stages"),
+        ("Ghost cells",       "ng = 3  ·  7-cell stencil",   "ng = 3  ·  7-cell stencil"),
+        ("Precision",         "float32  ✓",                  "float64"),
+        ("Implementation",    "Warp fused GPU kernels",      "JAX  /  XLA JIT"),
     ]
+    for i, (label, wval, jval) in enumerate(rows):
+        y = ROWS_Y + i * ROW_H
+        # row label
+        txt(s, label, LEFT_X+0.20, y+0.04, COL_W-0.40, 0.30,
+            sz=11, bold=True, color=GDARK)
+        txt(s, wval,  LEFT_X+0.20, y+0.34, COL_W-0.40, 0.34, sz=15, color=GDARK)
+        txt(s, label, RIGHT_X+0.20, y+0.04, COL_W2-0.40, 0.30,
+            sz=11, bold=True, color=ORANGE)
+        txt(s, jval,  RIGHT_X+0.20, y+0.34, COL_W2-0.40, 0.34, sz=15, color=DKGRAY)
+        # divider
+        if i > 0:
+            hline(s, y, l=LEFT_X+0.12,  w=COL_W-0.24,  color=GLOW)
+            hline(s, y, l=RIGHT_X+0.12, w=COL_W2-0.24, color=OLIGHT)
 
-    for r, (rname, v0, v1, v2) in enumerate(rows):
-        y = 1.62 + r * 0.72
-        row_bg = PANEL if r % 2 == 0 else LGRAY
-        for ci, (cx, val) in enumerate(zip(col_x, [v0, v1, v2])):
-            bg = RGBColor(0x0F, 0x1E, 0x00) if ci == 1 else row_bg
-            rect(s, cx, y, col_w, 0.68, bg=bg)
-            txt(s, rname if ci == 0 else "",
-                cx+0.12, y+0.04, col_w-0.24, 0.26, size=11, bold=True, color=GRAY)
-            txt(s, val, cx+0.12, y+0.32, col_w-0.24, 0.32,
-                size=12, color=(GREEN if ci == 1 else WHITE))
-
-    rect(s, 0.35, 6.78, 12.6, 0.38, bg=GREEN)
+    # insight bar
+    rect(s, 0.42, 6.50, 12.55, 0.62, bg=GREEN)
     txt(s,
-        f"Result:  f32 vs f64 accuracy gap = {acc_gap:.1f}%"
-        f"   (Warp {wp_l1:.2e}  vs  JaxFluids {jf_l1:.2e}  at N=512)",
-        0.55, 6.82, 12.2, 0.32, size=13, bold=True, color=BLACK)
+        f"Only difference:  f32 vs f64   →   L1(ρ) gap = {gap:.1f}%   "
+        f"(Warp {wp_l1:.2e}  vs  JaxFluids {jf_l1:.2e}  at N = 512)",
+        0.62, 6.60, 12.15, 0.46, sz=15, bold=True, color=WHITE)
 
 
-# ── Slide 3 — Sod Accuracy ────────────────────────────────────────────────────
-# Image aspect ratios:
-#   jaxfluids_profiles.png  13×4    → 3.25:1  → at w=12.65: h=3.89
-#   sod_animation.gif       13×4.2  → 3.10:1  → at w=6.25 : h=2.02
-#   sod_convergence.png     15×5    → 3.00:1  → at w=6.10 : h=2.03
+# ══════════════════════════════════════════════════════════════════════════════
+# Slides 3 & 4 — Accuracy (Sod / Shu-Osher)
+# ══════════════════════════════════════════════════════════════════════════════
 
 def slide_sod(prs):
-    s = blank_slide(prs); fill_bg(s)
-    slide_header(s, "Sod Shock Tube  ·  Accuracy & Convergence",
-                 "WENO5-Z vs EXACT RIEMANN", chip_w=3.2,
-                 chip2="ANIMATION", chip2_x=9.9, chip2_w=1.5)
-
-    # profiles — full width, top
-    img(s, SOD / "jaxfluids_profiles.png",  0.35, 1.08, 12.65)      # h≈3.89, ends≈4.97
-
-    # animation (left) + convergence (right) — bottom row
-    img(s, SOD / "sod_animation.gif",        0.35, 5.05,  6.25)      # h≈2.02, ends≈7.07
-    img(s, SOD / "sod_convergence.png",      6.75, 5.05,  6.10)      # h≈2.03, ends≈7.08
-
-
-# ── Slide 4 — Shu-Osher Accuracy ──────────────────────────────────────────────
-# Image aspect ratios:
-#   jaxfluids_profiles.png    14×4.5  → 3.11:1  → at w=12.65: h=4.07
-#   shu_osher_animation.gif   14×4.5  → 3.11:1  → at w=6.25 : h=2.01
-#   shu_osher_convergence.png 14×5    → 2.80:1  → at w=5.70 : h=2.04
+    s = blank_slide(prs)
+    slide_header(s, "Sod Shock Tube  ·  Accuracy & Convergence")
+    tag(s, "WENO5-Z  vs  EXACT RIEMANN", 0.42, 0.98, w=3.6)
+    img(s, SOD / "jaxfluids_profiles.png", 0.38, 1.40, 12.65)
+    img(s, SOD / "sod_animation.gif",       0.38, 5.22,  6.25)
+    img(s, SOD / "sod_convergence.png",     6.78, 5.22,  6.10)
 
 def slide_shu_osher(prs):
-    s = blank_slide(prs); fill_bg(s)
-    slide_header(s, "Shu-Osher Problem  ·  Accuracy & Convergence",
-                 "WENO5-Z SELF-CONVERGENCE", chip_w=3.2,
-                 chip2="ANIMATION", chip2_x=9.9, chip2_w=1.5)
-
-    img(s, SHO / "jaxfluids_profiles.png",       0.35, 1.08, 12.65)  # h≈4.07, ends≈5.15
-
-    img(s, SHO / "shu_osher_animation.gif",       0.35, 5.25,  6.25) # h≈2.01, ends≈7.26
-    img(s, SHO / "shu_osher_convergence.png",     6.75, 5.25,  5.70) # h≈2.04, ends≈7.29
+    s = blank_slide(prs)
+    slide_header(s, "Shu-Osher Problem  ·  Accuracy & Convergence")
+    tag(s, "WENO5-Z  SELF-CONVERGENCE", 0.42, 0.98, w=3.2)
+    img(s, SHO / "jaxfluids_profiles.png",   0.38, 1.40, 12.65)
+    img(s, SHO / "shu_osher_animation.gif",   0.38, 5.40,  6.25)
+    img(s, SHO / "shu_osher_convergence.png", 6.78, 5.40,  5.70)
 
 
-# ── Slide 5 — Throughput (JaxFluids head-to-head) ────────────────────────────
-# Image aspect ratios: both 9×6 → 1.5:1  → at w=6.25: h=4.17
+# ══════════════════════════════════════════════════════════════════════════════
+# Slide 5 — Throughput
+# ══════════════════════════════════════════════════════════════════════════════
 
 def slide_throughput(prs):
-    s = blank_slide(prs); fill_bg(s)
-    slide_header(s,
-        "Performance  ·  Throughput  (Warp f32  vs  JaxFluids f64)",
-        "SOD", chip_w=1.1,
-        chip2="SHU-OSHER", chip2_x=6.9, chip2_w=1.8)
+    s = blank_slide(prs)
+    slide_header(s, "Performance  ·  Warp f32  vs  JaxFluids f64")
+    tag(s, "SOD",        0.42,  0.98, w=1.1)
+    tag(s, "SHU-OSHER",  6.92,  0.98, w=1.9)
 
-    img(s, SOD / "jaxfluids_throughput.png",  0.35, 1.08, 6.25)      # h≈4.17, ends≈5.25
-    img(s, SHO / "jaxfluids_throughput.png",  6.75, 1.08, 6.25)      # h≈4.17, ends≈5.25
+    img(s, SOD / "jaxfluids_throughput.png", 0.38, 1.40, 6.25)
+    img(s, SHO / "jaxfluids_throughput.png", 6.78, 1.40, 6.25)
 
-    # callout strip
-    rect(s, 0.35, 5.4, 12.6, 1.72, bg=PANEL)
+    rect(s, 0.38, 5.70, 12.60, 1.42, bg=PANEL, border=LGRAY)
+    rect(s, 0.38, 5.70, 12.60, 0.07, bg=GREEN)
+
     callouts = [
-        (f"{sod_ratio:.0f}×",   "Warp vs JaxFluids\nSod  ·  N=4096"),
-        (f"{sho_ratio:.0f}×",   "Warp vs JaxFluids\nShu-Osher  ·  N=4096"),
-        ("∼13 Mcell/s",          "Warp CUDA peak\nboth test cases"),
-        (f"< {math.ceil(acc_gap)}%", "L1(ρ) accuracy gap\nf32 vs f64  ·  N=512"),
+        (f"{sod_x:.0f}×",          "faster than JaxFluids\nSod  ·  N = 4 096"),
+        (f"{sho_x:.0f}×",          "faster than JaxFluids\nShu-Osher  ·  N = 4 096"),
+        ("∼13 Mcell/s",             "Warp CUDA peak\nboth test cases"),
+        (f"< {math.ceil(gap)}%",   "L1(ρ) accuracy gap\nf32 vs f64  ·  N = 512"),
     ]
-    cw = 3.05; cx0 = 0.5
+    cw = 3.0; x0 = 0.55
     for i, (num, desc) in enumerate(callouts):
-        cx = cx0 + i * (cw + 0.13)
+        cx = x0 + i * (cw + 0.18)
         if i > 0:
-            rect(s, cx - 0.06, 5.5, 0.01, 1.5, bg=GRAY)
-        txt(s, num,  cx, 5.48, cw, 0.6,  size=28, bold=True, color=GREEN)
-        txt(s, desc, cx, 6.1,  cw, 0.9,  size=10, color=GRAY)
+            rect(s, cx-0.10, 5.82, 0.012, 1.16, bg=LGRAY)
+        txt(s, num,  cx, 5.78, cw, 0.66, sz=42, bold=True, color=GREEN)
+        txt(s, desc, cx, 6.46, cw, 0.60, sz=12, color=DKGRAY)
 
 
-# ── Slide 6 — GPU Scaling ─────────────────────────────────────────────────────
-# Image aspect ratios: both 9×6 → 1.5:1  → at w=6.25: h=4.17
+# ══════════════════════════════════════════════════════════════════════════════
+# Slide 6 — GPU Scaling
+# ══════════════════════════════════════════════════════════════════════════════
 
 def slide_scaling(prs):
-    s = blank_slide(prs); fill_bg(s)
-    slide_header(s, "GPU Throughput Scaling  (Warp CPU  ·  Warp CUDA)",
-                 "SOD", chip_w=1.1,
-                 chip2="SHU-OSHER", chip2_x=6.9, chip2_w=1.8)
+    s = blank_slide(prs)
+    slide_header(s, "GPU Throughput Scaling")
+    tag(s, "SOD",        0.42, 0.98, w=1.1)
+    tag(s, "SHU-OSHER",  6.92, 0.98, w=1.9)
 
-    img(s, SOD / "sod_scaling.png",          0.35, 1.08, 6.25)       # h≈4.17, ends≈5.25
-    img(s, SHO / "shu_osher_scaling.png",    6.75, 1.08, 6.25)
+    img(s, SOD / "sod_scaling.png",        0.38, 1.40, 6.25)
+    img(s, SHO / "shu_osher_scaling.png",  6.78, 1.40, 6.25)
 
     ml(s, [
-        ("Both cases: Warp CUDA ~767–814 Mcell/s at N=131072", 12, GREEN, True),
-        ("Warp CUDA > Warp CPU crossover: N~512  |  Both still bandwidth-scaling at N=131K", 11, GRAY, False),
-    ], 0.35, 5.42, 12.6, 0.8, ds=12)
+        ("Warp CUDA: ~767–814 Mcell/s at N = 131 072  —  still bandwidth-scaling, not yet saturated", 15, GREEN, True),
+        ("GPU crossover vs CPU: N ≈ 512   ·   Memory footprint: flat 32 MiB regardless of N  (cudaMallocAsync pool)", 14, DKGRAY, False),
+    ], 0.38, 5.66, 12.60, 1.0)
 
 
-# ── Slide 7 — Memory Footprint ────────────────────────────────────────────────
-# Image aspect ratios: both 9×6 → 1.5:1  → at w=6.25: h=4.17
+# ══════════════════════════════════════════════════════════════════════════════
+# Slide 7 — Memory
+# ══════════════════════════════════════════════════════════════════════════════
 
 def slide_memory(prs):
-    s = blank_slide(prs); fill_bg(s)
-    slide_header(s, "GPU Memory Footprint  (Warp  vs  JaxFluids)",
-                 "SOD", chip_w=1.1,
-                 chip2="SHU-OSHER", chip2_x=6.9, chip2_w=1.8)
+    s = blank_slide(prs)
+    slide_header(s, "GPU Memory Footprint")
+    tag(s, "SOD",        0.42, 0.98, w=1.1)
+    tag(s, "SHU-OSHER",  6.92, 0.98, w=1.9)
 
-    img(s, SOD / "sod_memory.png",           0.35, 1.08, 6.25)
-    img(s, SHO / "shu_osher_memory.png",     6.75, 1.08, 6.25)
+    img(s, SOD / "sod_memory.png",        0.38, 1.40, 6.25)
+    img(s, SHO / "shu_osher_memory.png",  6.78, 1.40, 6.25)
 
     ml(s, [
-        ("Warp: 32 MiB flat (cudaMallocAsync pool pre-allocated once — O(1) reuse regardless of N)", 12, GREEN, True),
-        ("JaxFluids: grows linearly with N  |  Theory: 3 × 3 × (N+6) × 4 B", 11, GRAY, False),
-    ], 0.35, 5.42, 12.6, 0.8, ds=12)
+        ("Warp: 32 MiB flat  —  cudaMallocAsync pool pre-allocated once, O(1) reuse regardless of N", 15, GREEN, True),
+        ("JaxFluids: grows linearly with N   ·   Theory: 3 × 3 × (N + 6) × 4 B   ·   Crossover: N ≈ 1 000", 14, DKGRAY, False),
+    ], 0.38, 5.66, 12.60, 1.0)
 
 
-# ── assemble ──────────────────────────────────────────────────────────────────
+# ══════════════════════════════════════════════════════════════════════════════
+# Slide 8 — Roadmap  (2 × 4 card grid, 8 phases)
+# ══════════════════════════════════════════════════════════════════════════════
+
+PHASES = [
+    {
+        "n": "1", "done": True,
+        "title": "1-D Compressible Euler",
+        "sub": "COMPLETE",
+        "items": [
+            f"WENO5-Z + HLLC + SSP-RK3  ·  float32",
+            f"Sod & Shu-Osher V&V",
+            f"{sod_x:.0f}× faster than JaxFluids (Sod)",
+            f"L1 accuracy gap: {gap:.1f}%  (f32 vs f64)",
+        ],
+        "bg": GLOW, "border": GREEN, "nbg": GREEN, "ntc": WHITE, "tc": GDARK,
+    },
+    {
+        "n": "2", "done": False,
+        "title": "2-D Compressible Euler",
+        "sub": "NEXT",
+        "items": [
+            "Strang dimensional splitting  x/2 → y → x/2",
+            "Reuse 1-D fused kernels per axis",
+            "Kelvin-Helmholtz instability  V&V",
+            "2-D N×N GPU throughput benchmark",
+        ],
+        "bg": OLIGHT, "border": ORANGE, "nbg": ORANGE, "ntc": WHITE, "tc": DKGRAY,
+    },
+    {
+        "n": "3", "done": False,
+        "title": "3-D Compressible Euler",
+        "sub": "PLANNED",
+        "items": [
+            "Full 3-D fused kernel — 3 sweep axes",
+            "Rayleigh-Taylor instability  V&V",
+            "Shock-vortex interaction benchmark",
+            "3-D N³ GPU scaling study",
+        ],
+        "bg": PANEL, "border": LGRAY, "nbg": PANEL2, "ntc": GRAY, "tc": DKGRAY,
+    },
+    {
+        "n": "4", "done": False,
+        "title": "Compressible Navier-Stokes",
+        "sub": "PLANNED",
+        "items": [
+            "Viscous + heat conduction fluxes",
+            "Taylor-Green vortex  (Re = 1 600)  V&V",
+            "DNS kinetic-energy decay validation",
+            "Reynolds-number sweep",
+        ],
+        "bg": PANEL, "border": LGRAY, "nbg": PANEL2, "ntc": GRAY, "tc": DKGRAY,
+    },
+    {
+        "n": "5", "done": False,
+        "title": "Higher-Order Numerics",
+        "sub": "PLANNED",
+        "items": [
+            "WENO7, TENO, MP-WENO schemes",
+            "Adaptive stencil reconstruction",
+            "Convergence across smooth & shocked regions",
+            "Scheme comparison benchmark suite",
+        ],
+        "bg": PANEL, "border": LGRAY, "nbg": PANEL2, "ntc": GRAY, "tc": DKGRAY,
+    },
+    {
+        "n": "6", "done": False,
+        "title": "Two-Phase & Interface Methods",
+        "sub": "PLANNED",
+        "items": [
+            "Diffuse interface  (conservative)",
+            "Level-set interface sharpening kernel",
+            "Bubble collapse  +  Rayleigh-Plesset V&V",
+            "Phase-field GPU benchmark",
+        ],
+        "bg": PANEL, "border": LGRAY, "nbg": PANEL2, "ntc": GRAY, "tc": DKGRAY,
+    },
+    {
+        "n": "7", "done": False,
+        "title": "Multi-GPU & Distributed",
+        "sub": "PLANNED",
+        "items": [
+            "Domain decomposition  (MPI / NCCL)",
+            "Warp halo-exchange kernels",
+            "Weak & strong scaling  (1 → 64 GPUs)",
+            "Target: TB/s collective memory bandwidth",
+        ],
+        "bg": PANEL, "border": LGRAY, "nbg": PANEL2, "ntc": GRAY, "tc": DKGRAY,
+    },
+    {
+        "n": "8", "done": False,
+        "title": "Full JaxFluids Warp Backend",
+        "sub": "GOAL",
+        "items": [
+            "Drop-in Python API — identical config files",
+            "All JaxFluids cases run on Warp backend",
+            "100× throughput target at production scale",
+            "Open-source release alongside JaxFluids",
+        ],
+        "bg": PANEL, "border": GREEN, "nbg": GDARK, "ntc": WHITE, "tc": DKGRAY,
+    },
+]
+
+def slide_roadmap(prs):
+    s = blank_slide(prs); fill_bg(s); green_bar(s); bottom_bar(s)
+    txt(s, "Roadmap  ·  Warp Backend for JaxFluids",
+        0.42, 0.16, 12.5, 0.64, sz=34, bold=True, color=INK)
+    hline(s, 0.90)
+
+    # 2 rows × 4 columns
+    CW = 3.02; CH = 2.84; GAP_X = 0.13; GAP_Y = 0.16
+    X0 = (13.333 - 4*CW - 3*GAP_X) / 2   # ≈ 0.455
+    Y0 = 1.00
+
+    for idx, ph in enumerate(PHASES):
+        row = idx // 4; col = idx % 4
+        x = X0 + col * (CW + GAP_X)
+        y = Y0 + row * (CH + GAP_Y)
+
+        # card
+        rect(s, x, y, CW, CH, bg=ph["bg"], border=ph["border"], bw=1.5)
+
+        # large watermark number (bottom-right, very light)
+        wm_color = RGBColor(0xD0, 0xEB, 0xA8) if ph["done"] else PANEL2
+        txt(s, ph["n"], x + CW - 0.90, y + CH - 0.88, 0.86, 0.84,
+            sz=72, bold=True, color=wm_color, align=PP_ALIGN.RIGHT)
+
+        # phase badge
+        rect(s, x+0.16, y+0.16, 0.44, 0.44, bg=ph["nbg"])
+        txt(s, ph["n"], x+0.16, y+0.16, 0.44, 0.44,
+            sz=17, bold=True, color=ph["ntc"], align=PP_ALIGN.CENTER)
+
+        # sub-label  (COMPLETE / NEXT / PLANNED / GOAL)
+        sub_color = GREEN if ph["done"] else (ORANGE if ph["sub"]=="NEXT" else
+                    (GDARK  if ph["sub"]=="GOAL"  else GRAY))
+        txt(s, ph["sub"], x+0.70, y+0.22, CW-0.84, 0.26,
+            sz=10, bold=True, color=sub_color)
+
+        # title
+        txt(s, ph["title"], x+0.16, y+0.66, CW-0.32, 0.48,
+            sz=13, bold=True, color=ph["tc"])
+
+        hline(s, y+1.18, l=x+0.16, w=CW-0.32,
+              color=(GREEN if ph["done"] else (ORANGE if ph["sub"]=="NEXT" else LGRAY)))
+
+        # bullets
+        for j, item in enumerate(ph["items"]):
+            ty = y + 1.28 + j * 0.36
+            rect(s, x+0.20, ty+0.12, 0.06, 0.06,
+                 bg=(GREEN if ph["done"] else (ORANGE if ph["sub"]=="NEXT" else LGRAY)))
+            txt(s, item, x+0.34, ty, CW-0.50, 0.34,
+                sz=10, color=ph["tc"])
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# Assemble
+# ══════════════════════════════════════════════════════════════════════════════
 
 prs = new_prs()
 slide_title(prs)
@@ -343,10 +500,8 @@ slide_shu_osher(prs)
 slide_throughput(prs)
 slide_scaling(prs)
 slide_memory(prs)
+slide_roadmap(prs)
 
 prs.save(str(OUT))
 print(f"Saved -> {OUT}")
-print(f"  Slides: 7")
-print(f"  Sod speedup at N=4096:       {sod_ratio:.0f}x")
-print(f"  Shu-Osher speedup at N=4096: {sho_ratio:.0f}x")
-print(f"  L1(rho) accuracy gap:        {acc_gap:.1f}%")
+print(f"  8 slides  |  Sod {sod_x:.0f}×  Shu-Osher {sho_x:.0f}×  gap {gap:.1f}%")
