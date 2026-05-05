@@ -124,37 +124,17 @@ All tests run on Warp CPU — no CUDA required.
 
 ---
 
-## Benchmarks
-
-All scripts save CSV output so plots can be reproduced without re-running on GPU.
-
-```bash
-# Warp vs JaxFluids head-to-head (requires JaxFluids venv)
-python benchmarks/sod/bench_jaxfluids.py
-python benchmarks/shu_osher/bench_jaxfluids.py
-
-# Warp-only N-sweep and memory (no JaxFluids needed)
-python benchmarks/sod/throughput_memory.py
-python benchmarks/shu_osher/throughput_memory.py
-
-# Regenerate all plots from saved CSV (no GPU needed)
-python benchmarks/sod/plot_from_csv.py
-python benchmarks/shu_osher/plot_from_csv.py
-```
-
----
-
 ## Roadmap
 
 Long-term goal: a complete Warp GPU backend for JaxFluids — drop-in replacement, identical Python API, targeting 100× throughput at production scale.
 
 | Phase | Status | Scope |
 |---|---|---|
-| 1 | ✅ **Complete** | 1-D Euler · WENO5-Z + HLLC + SSP-RK3 · Sod + Shu-Osher V&V · 183× vs JaxFluids |
+| 1 | ✅ Done | 1-D Euler · WENO5-Z + HLLC + SSP-RK3 · Sod + Shu-Osher V&V · 183× vs JaxFluids |
 | 2 | Next | 2-D Euler · Strang dimensional splitting · Kelvin-Helmholtz instability V&V |
 | 3 | Planned | 3-D Euler · Rayleigh-Taylor + shock-vortex V&V · 3-D N³ scaling |
-| 4 | Planned | Compressible Navier-Stokes · viscous + heat conduction · Taylor-Green vortex |
-| 5 | Planned | Higher-order schemes · WENO7, TENO, MP-WENO · scheme comparison suite |
-| 6 | Planned | Two-phase & interface methods · diffuse interface · bubble collapse V&V |
-| 7 | Planned | Multi-GPU · domain decomposition (MPI/NCCL) · weak & strong scaling |
+| 4 | Goal | Compressible Navier-Stokes · viscous + heat conduction · Taylor-Green vortex |
+| 5 | Goal | Higher-order schemes · WENO7, TENO, MP-WENO · scheme comparison suite |
+| 6 | Goal | Two-phase & interface methods · diffuse interface · bubble collapse V&V |
+| 7 | Goal | Multi-GPU · domain decomposition (MPI/NCCL) · weak & strong scaling |
 | 8 | Goal | Full JaxFluids Warp backend · drop-in Python API · open-source release |
