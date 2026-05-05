@@ -78,7 +78,8 @@ def bench_warp(device, N, scheme):
 
 _JXF_WORKER = """
 import json, os, statistics, sys, tempfile, time
-os.environ.setdefault("XLA_PYTHON_CLIENT_PREALLOCATE", "false")
+os.environ["XLA_PYTHON_CLIENT_PREALLOCATE"] = "false"
+os.environ["JAX_PLATFORMS"] = "cuda"
 args  = json.loads(sys.argv[1])
 case_tmpl, num_path_s, N, N_BENCH, A_MAX, T_END = (
     args["case_tmpl"], args["num_path"], args["N"],
