@@ -212,6 +212,42 @@ def plot_convergence(csv_path, out_path):
     print(f"Saved -> {out_path}")
 
 
+def merge_throughput_csvs(*paths):
+    """Merge multiple throughput CSVs, deduplicating on (solver, N) — last write wins."""
+    merged = {}
+    for path in paths:
+        rows = read_csv(Path(path))
+        if not rows:
+            continue
+        for r in rows:
+            merged[(r["solver"], int(r["N"]))] = float(r["throughput_Mcells"])
+    return merged
+
+
+def plot_throughput_merged(csv_paths, out_path, title):
+    merged = merge_throughput_csvs(*csv_paths)
+    if not merged:
+        print(f"[skip] no data for {out_path.name}"); return
+    data = defaultdict(lambda: {"N": [], "tp": []})
+    for (solver, N), tp in sorted(merged.items(), key=lambda x: (x[0][0], x[0][1])):
+        data[solver]["N"].append(N)
+        data[solver]["tp"].append(tp)
+    fig, ax = plt.subplots(figsize=(9, 6))
+    for name, d in data.items():
+        m, ls = _style(name)[0], _style(name)[1:]
+        ax.plot(d["N"], d["tp"], marker=m, ls=ls, color=_color(name), lw=1.8, ms=7, label=name)
+    all_N = sorted({n for d in data.values() for n in d["N"]})
+    ax.set_xscale("log", base=2); ax.set_yscale("log", base=2)
+    ax.set_xlabel("Number of cells", fontsize=12)
+    ax.set_ylabel("Throughput  (Mcell-updates / s)", fontsize=12)
+    ax.set_title(title, fontsize=11)
+    ax.legend(fontsize=10); ax.grid(True, which="both", lw=0.4, alpha=0.5)
+    ax.set_xticks(all_N); ax.set_xticklabels([f"{n:,}" for n in all_N], rotation=35, ha="right", fontsize=8)
+    fig.tight_layout()
+    fig.savefig(out_path, dpi=150, bbox_inches="tight"); plt.close(fig)
+    print(f"Saved -> {out_path}")
+
+
 def main():
     theory = lambda N: 3 * 3 * (N + 6) * 4 / (1024 ** 2)
 
@@ -224,8 +260,9 @@ def main():
         OUT / "bench_jaxfluids_profiles_N512.csv",
         OUT / "jaxfluids_profiles.png")
 
-    plot_throughput(
-        OUT / "throughput_scaling.csv",
+    # scaling plot: merge Warp N-sweep + JaxFluids head-to-head data
+    plot_throughput_merged(
+        [OUT / "throughput_scaling.csv", OUT / "bench_jaxfluids_throughput.csv"],
         OUT / "sod_scaling.png",
         title="Sod  —  throughput vs grid size  (WENO5-Z+HLLC+RK3)")
 
