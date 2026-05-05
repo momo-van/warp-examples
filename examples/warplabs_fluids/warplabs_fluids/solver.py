@@ -161,7 +161,6 @@ class WarpEuler1D:
         """
         if self.device == "cpu":
             raise ValueError("CUDA graph capture requires a CUDA device")
-        wp.load_module(device=self.device)
         wp.capture_begin(device=self.device)
         for _ in range(n_steps):
             if self.scheme == "weno5z-rk3-f64":
