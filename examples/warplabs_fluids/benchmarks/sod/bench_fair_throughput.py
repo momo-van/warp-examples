@@ -178,11 +178,15 @@ def main():
     try:
         case_tmpl = json.load(open(JXF_EX / "sod.json"))
         num_setup = json.load(open(JXF_EX / "numerical_setup.json"))
+        # Force fp32 and silence per-step logging for fair/fast benchmarking
+        num_setup.setdefault("precision", {})["is_double_precision_compute"] = False
+        num_setup.setdefault("precision", {})["is_double_precision_output"] = False
+        num_setup.setdefault("output", {}).setdefault("logging", {})["level"] = "NONE"
         tmp_dir   = Path(tempfile.mkdtemp(prefix="fair_sod_"))
         num_path  = tmp_dir / "numerical_setup.json"
         num_path.write_text(json.dumps(num_setup))
         jxf_ok = True
-        print("[info] JaxFluids templates loaded")
+        print("[info] JaxFluids templates loaded (fp32, logging=NONE)")
     except Exception as e:
         print(f"[info] JaxFluids not available ({e}) — Warp-only run")
 
