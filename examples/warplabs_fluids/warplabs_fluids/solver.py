@@ -6,6 +6,8 @@ from .kernels import (
     fused_rk_stage_1d_periodic,
     fused_rk_stage_1d_outflow_w5z,
     fused_rk_stage_1d_periodic_w5z,
+    fused_rk_stage_1d_outflow_w5z_f64,
+    fused_rk_stage_1d_periodic_w5z_f64,
 )
 
 _FUSED_KERNELS = {
@@ -18,11 +20,17 @@ _FUSED_KERNELS_W5Z = {
     "periodic": fused_rk_stage_1d_periodic_w5z,
 }
 
+_FUSED_KERNELS_W5Z_F64 = {
+    "outflow":  fused_rk_stage_1d_outflow_w5z_f64,
+    "periodic": fused_rk_stage_1d_periodic_w5z_f64,
+}
+
 NVARS_1D = 3   # [rho, rho*u, E]
 
 _SCHEME_NG = {
-    "weno3-rk2":  2,
-    "weno5z-rk3": 3,
+    "weno3-rk2":      2,
+    "weno5z-rk3":     3,
+    "weno5z-rk3-f64": 3,
 }
 
 
@@ -69,14 +77,16 @@ class WarpEuler1D:
         self._ng    = _SCHEME_NG[scheme]
         self._N_ext = N + 2 * self._ng
         self._t     = 0.0
+        self._f64   = (scheme == "weno5z-rk3-f64")
 
         wp.init()
 
+        dtype = wp.float64 if self._f64 else float
         shape = (NVARS_1D, self._N_ext)
-        self._Q        = wp.zeros(shape, dtype=float, device=device)
-        self._Q_stage  = wp.zeros(shape, dtype=float, device=device)
-        if scheme == "weno5z-rk3":
-            self._Q_stage2 = wp.zeros(shape, dtype=float, device=device)
+        self._Q        = wp.zeros(shape, dtype=dtype, device=device)
+        self._Q_stage  = wp.zeros(shape, dtype=dtype, device=device)
+        if scheme in ("weno5z-rk3", "weno5z-rk3-f64"):
+            self._Q_stage2 = wp.zeros(shape, dtype=dtype, device=device)
 
     # ------------------------------------------------------------------
     # Public API
@@ -88,14 +98,21 @@ class WarpEuler1D:
         assert Q0.shape == (NVARS_1D, self.N), \
             f"Expected shape ({NVARS_1D}, {self.N}), got {Q0.shape}"
 
-        Q_ext = np.zeros((NVARS_1D, self._N_ext), dtype=np.float32)
-        Q_ext[:, ng : ng + self.N] = Q0.astype(np.float32)
-        self._Q = wp.from_numpy(Q_ext, dtype=float, device=self.device)
+        if self._f64:
+            np_dtype, wp_dtype = np.float64, wp.float64
+        else:
+            np_dtype, wp_dtype = np.float32, float
+
+        Q_ext = np.zeros((NVARS_1D, self._N_ext), dtype=np_dtype)
+        Q_ext[:, ng : ng + self.N] = Q0.astype(np_dtype)
+        self._Q = wp.from_numpy(Q_ext, dtype=wp_dtype, device=self.device)
         self._t = 0.0
 
     def step(self, dt: float) -> None:
         """Advance by one timestep (2 launches for RK2, 3 for RK3)."""
-        if self.scheme == "weno5z-rk3":
+        if self.scheme == "weno5z-rk3-f64":
+            self._step_rk3_f64(dt)
+        elif self.scheme == "weno5z-rk3":
             self._step_rk3(dt)
         else:
             self._step_rk2(dt)
@@ -148,12 +165,16 @@ class WarpEuler1D:
         Stage 3: Q_n1 = 1/3*Q0 + 2/3*Q2 + 2/3*dt*L(Q2)
         """
         k = _FUSED_KERNELS_W5Z[self.bc]
-        # Stage 1: Q_stage = Q0 + dt*L(Q0)
         self._fused_stage(k, self._Q, self._Q, self._Q_stage, dt, 1.0, 0.0, 1.0)
-        # Stage 2: Q_stage2 = 3/4*Q0 + 1/4*Q_stage + 1/4*dt*L(Q_stage)
         self._fused_stage(k, self._Q_stage, self._Q, self._Q_stage2, dt, 0.75, 0.25, 0.25)
-        # Stage 3: Q = 1/3*Q0 + 2/3*Q_stage2 + 2/3*dt*L(Q_stage2)
         self._fused_stage(k, self._Q_stage2, self._Q, self._Q, dt, 1.0/3.0, 2.0/3.0, 2.0/3.0)
+
+    def _step_rk3_f64(self, dt: float) -> None:
+        """SSP-RK3 float64 variant."""
+        k = _FUSED_KERNELS_W5Z_F64[self.bc]
+        self._fused_stage_f64(k, self._Q, self._Q, self._Q_stage, dt, 1.0, 0.0, 1.0)
+        self._fused_stage_f64(k, self._Q_stage, self._Q, self._Q_stage2, dt, 0.75, 0.25, 0.25)
+        self._fused_stage_f64(k, self._Q_stage2, self._Q, self._Q, dt, 1.0/3.0, 2.0/3.0, 2.0/3.0)
 
     def _fused_stage(
         self,
@@ -173,5 +194,26 @@ class WarpEuler1D:
                     self._ng, self.N, self.gamma,
                     float(dt), self.dx,
                     float(alpha), float(beta), float(coeff)],
+            device=self.device,
+        )
+
+    def _fused_stage_f64(
+        self,
+        kernel,
+        Q_in:   wp.array,
+        Q_ref:  wp.array,
+        Q_out:  wp.array,
+        dt:     float,
+        alpha:  float,
+        beta:   float,
+        coeff:  float,
+    ) -> None:
+        wp.launch(
+            kernel,
+            dim=self.N,
+            inputs=[Q_in, Q_ref, Q_out,
+                    self._ng, self.N, wp.float64(self.gamma),
+                    wp.float64(dt), wp.float64(self.dx),
+                    wp.float64(alpha), wp.float64(beta), wp.float64(coeff)],
             device=self.device,
         )

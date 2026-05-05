@@ -1,7 +1,7 @@
 import warp as wp
 
-from .reconstruct import weno3_left, weno3_right, weno5z_left, weno5z_right
-from .riemann import hllc_flux_1d
+from .reconstruct import weno3_left, weno3_right, weno5z_left, weno5z_right, weno5z_left_f64, weno5z_right_f64
+from .riemann import hllc_flux_1d, hllc_flux_1d_f64
 
 # Fused bc+WENO3+HLLC+RK-stage kernel — 1 launch per RK stage (2 per step).
 #
@@ -259,6 +259,120 @@ def fused_rk_stage_1d_periodic_w5z(
         gamma)
 
     inv_dx = 1.0 / dx
+    Q_out[0, i0] = alpha * Q_ref[0, i0] + beta * rho_c  + coeff * dt * (-(F_r[0] - F_l[0]) * inv_dx)
+    Q_out[1, i0] = alpha * Q_ref[1, i0] + beta * rhou_c + coeff * dt * (-(F_r[1] - F_l[1]) * inv_dx)
+    Q_out[2, i0] = alpha * Q_ref[2, i0] + beta * E_c    + coeff * dt * (-(F_r[2] - F_l[2]) * inv_dx)
+
+
+# ── WENO5-Z + SSP-RK3 float64 fused kernels ───────────────────────────────────
+
+@wp.func
+def _flux_at_interface_w5z_f64(
+    rho_a: wp.float64, u_a: wp.float64, p_a: wp.float64,
+    rho_b: wp.float64, u_b: wp.float64, p_b: wp.float64,
+    rho_c: wp.float64, u_c: wp.float64, p_c: wp.float64,
+    rho_d: wp.float64, u_d: wp.float64, p_d: wp.float64,
+    rho_e: wp.float64, u_e: wp.float64, p_e: wp.float64,
+    rho_f: wp.float64, u_f: wp.float64, p_f: wp.float64,
+    gamma: wp.float64,
+) -> wp.vec3d:
+    rho_L = weno5z_left_f64(rho_a, rho_b, rho_c, rho_d, rho_e)
+    u_L   = weno5z_left_f64(u_a,   u_b,   u_c,   u_d,   u_e)
+    p_L   = weno5z_left_f64(p_a,   p_b,   p_c,   p_d,   p_e)
+    rho_R = weno5z_right_f64(rho_b, rho_c, rho_d, rho_e, rho_f)
+    u_R   = weno5z_right_f64(u_b,   u_c,   u_d,   u_e,   u_f)
+    p_R   = weno5z_right_f64(p_b,   p_c,   p_d,   p_e,   p_f)
+    gm1   = gamma - wp.float64(1.0)
+    E_L   = p_L / gm1 + wp.float64(0.5) * rho_L * u_L * u_L
+    E_R   = p_R / gm1 + wp.float64(0.5) * rho_R * u_R * u_R
+    return hllc_flux_1d_f64(rho_L, u_L, p_L, E_L, rho_R, u_R, p_R, E_R, gamma)
+
+
+@wp.kernel
+def fused_rk_stage_1d_outflow_w5z_f64(
+    Q_in:  wp.array2d(dtype=wp.float64),
+    Q_ref: wp.array2d(dtype=wp.float64),
+    Q_out: wp.array2d(dtype=wp.float64),
+    ng: int, N: int, gamma: wp.float64,
+    dt: wp.float64, dx: wp.float64,
+    alpha: wp.float64, beta: wp.float64, coeff: wp.float64,
+):
+    i  = wp.tid()
+    i0 = ng + i
+
+    im3 = wp.clamp(i0 - 3, ng, ng + N - 1)
+    im2 = wp.clamp(i0 - 2, ng, ng + N - 1)
+    im1 = wp.clamp(i0 - 1, ng, ng + N - 1)
+    ip1 = wp.clamp(i0 + 1, ng, ng + N - 1)
+    ip2 = wp.clamp(i0 + 2, ng, ng + N - 1)
+    ip3 = wp.clamp(i0 + 3, ng, ng + N - 1)
+
+    gm1  = gamma - wp.float64(1.0)
+    half = wp.float64(0.5)
+
+    rho_m3 = Q_in[0, im3]; u_m3 = Q_in[1, im3] / rho_m3; p_m3 = gm1 * (Q_in[2, im3] - half * rho_m3 * u_m3 * u_m3)
+    rho_m2 = Q_in[0, im2]; u_m2 = Q_in[1, im2] / rho_m2; p_m2 = gm1 * (Q_in[2, im2] - half * rho_m2 * u_m2 * u_m2)
+    rho_m1 = Q_in[0, im1]; u_m1 = Q_in[1, im1] / rho_m1; p_m1 = gm1 * (Q_in[2, im1] - half * rho_m1 * u_m1 * u_m1)
+    rho_c  = Q_in[0, i0];  rhou_c = Q_in[1, i0]; E_c = Q_in[2, i0]
+    u_c  = rhou_c / rho_c;  p_c = gm1 * (E_c - half * rho_c * u_c * u_c)
+    rho_p1 = Q_in[0, ip1]; u_p1 = Q_in[1, ip1] / rho_p1; p_p1 = gm1 * (Q_in[2, ip1] - half * rho_p1 * u_p1 * u_p1)
+    rho_p2 = Q_in[0, ip2]; u_p2 = Q_in[1, ip2] / rho_p2; p_p2 = gm1 * (Q_in[2, ip2] - half * rho_p2 * u_p2 * u_p2)
+    rho_p3 = Q_in[0, ip3]; u_p3 = Q_in[1, ip3] / rho_p3; p_p3 = gm1 * (Q_in[2, ip3] - half * rho_p3 * u_p3 * u_p3)
+
+    F_l = _flux_at_interface_w5z_f64(
+        rho_m3, u_m3, p_m3, rho_m2, u_m2, p_m2, rho_m1, u_m1, p_m1,
+        rho_c,  u_c,  p_c,  rho_p1, u_p1, p_p1, rho_p2, u_p2, p_p2, gamma)
+
+    F_r = _flux_at_interface_w5z_f64(
+        rho_m2, u_m2, p_m2, rho_m1, u_m1, p_m1, rho_c,  u_c,  p_c,
+        rho_p1, u_p1, p_p1, rho_p2, u_p2, p_p2, rho_p3, u_p3, p_p3, gamma)
+
+    inv_dx = wp.float64(1.0) / dx
+    Q_out[0, i0] = alpha * Q_ref[0, i0] + beta * rho_c  + coeff * dt * (-(F_r[0] - F_l[0]) * inv_dx)
+    Q_out[1, i0] = alpha * Q_ref[1, i0] + beta * rhou_c + coeff * dt * (-(F_r[1] - F_l[1]) * inv_dx)
+    Q_out[2, i0] = alpha * Q_ref[2, i0] + beta * E_c    + coeff * dt * (-(F_r[2] - F_l[2]) * inv_dx)
+
+
+@wp.kernel
+def fused_rk_stage_1d_periodic_w5z_f64(
+    Q_in:  wp.array2d(dtype=wp.float64),
+    Q_ref: wp.array2d(dtype=wp.float64),
+    Q_out: wp.array2d(dtype=wp.float64),
+    ng: int, N: int, gamma: wp.float64,
+    dt: wp.float64, dx: wp.float64,
+    alpha: wp.float64, beta: wp.float64, coeff: wp.float64,
+):
+    i  = wp.tid()
+    i0 = ng + i
+
+    im3 = ng + (i - 3 + N) % N
+    im2 = ng + (i - 2 + N) % N
+    im1 = ng + (i - 1 + N) % N
+    ip1 = ng + (i + 1) % N
+    ip2 = ng + (i + 2) % N
+    ip3 = ng + (i + 3) % N
+
+    gm1  = gamma - wp.float64(1.0)
+    half = wp.float64(0.5)
+
+    rho_m3 = Q_in[0, im3]; u_m3 = Q_in[1, im3] / rho_m3; p_m3 = gm1 * (Q_in[2, im3] - half * rho_m3 * u_m3 * u_m3)
+    rho_m2 = Q_in[0, im2]; u_m2 = Q_in[1, im2] / rho_m2; p_m2 = gm1 * (Q_in[2, im2] - half * rho_m2 * u_m2 * u_m2)
+    rho_m1 = Q_in[0, im1]; u_m1 = Q_in[1, im1] / rho_m1; p_m1 = gm1 * (Q_in[2, im1] - half * rho_m1 * u_m1 * u_m1)
+    rho_c  = Q_in[0, i0];  rhou_c = Q_in[1, i0]; E_c = Q_in[2, i0]
+    u_c  = rhou_c / rho_c;  p_c = gm1 * (E_c - half * rho_c * u_c * u_c)
+    rho_p1 = Q_in[0, ip1]; u_p1 = Q_in[1, ip1] / rho_p1; p_p1 = gm1 * (Q_in[2, ip1] - half * rho_p1 * u_p1 * u_p1)
+    rho_p2 = Q_in[0, ip2]; u_p2 = Q_in[1, ip2] / rho_p2; p_p2 = gm1 * (Q_in[2, ip2] - half * rho_p2 * u_p2 * u_p2)
+    rho_p3 = Q_in[0, ip3]; u_p3 = Q_in[1, ip3] / rho_p3; p_p3 = gm1 * (Q_in[2, ip3] - half * rho_p3 * u_p3 * u_p3)
+
+    F_l = _flux_at_interface_w5z_f64(
+        rho_m3, u_m3, p_m3, rho_m2, u_m2, p_m2, rho_m1, u_m1, p_m1,
+        rho_c,  u_c,  p_c,  rho_p1, u_p1, p_p1, rho_p2, u_p2, p_p2, gamma)
+
+    F_r = _flux_at_interface_w5z_f64(
+        rho_m2, u_m2, p_m2, rho_m1, u_m1, p_m1, rho_c,  u_c,  p_c,
+        rho_p1, u_p1, p_p1, rho_p2, u_p2, p_p2, rho_p3, u_p3, p_p3, gamma)
+
+    inv_dx = wp.float64(1.0) / dx
     Q_out[0, i0] = alpha * Q_ref[0, i0] + beta * rho_c  + coeff * dt * (-(F_r[0] - F_l[0]) * inv_dx)
     Q_out[1, i0] = alpha * Q_ref[1, i0] + beta * rhou_c + coeff * dt * (-(F_r[1] - F_l[1]) * inv_dx)
     Q_out[2, i0] = alpha * Q_ref[2, i0] + beta * E_c    + coeff * dt * (-(F_r[2] - F_l[2]) * inv_dx)

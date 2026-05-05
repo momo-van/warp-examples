@@ -81,3 +81,43 @@ def weno5z_right(f0: float, f1: float, f2: float, f3: float, f4: float) -> float
     a1 = 0.6 * (1.0 + tau5 / (b1 + _W5_EPS))
     a2 = 0.1 * (1.0 + tau5 / (b2 + _W5_EPS))
     return (a0*q0 + a1*q1 + a2*q2) / (a0 + a1 + a2)
+
+
+# ── WENO5-Z float64 variants ───────────────────────────────────────────────────
+
+@wp.func
+def weno5z_left_f64(f0: wp.float64, f1: wp.float64, f2: wp.float64, f3: wp.float64, f4: wp.float64) -> wp.float64:
+    eps = wp.float64(1.0e-36)
+    q0 = (wp.float64( 2.0)*f0 - wp.float64( 7.0)*f1 + wp.float64(11.0)*f2) / wp.float64(6.0)
+    q1 = (wp.float64(-1.0)*f1 + wp.float64( 5.0)*f2 + wp.float64( 2.0)*f3) / wp.float64(6.0)
+    q2 = (wp.float64( 2.0)*f2 + wp.float64( 5.0)*f3 - wp.float64( 1.0)*f4) / wp.float64(6.0)
+    b0 = (wp.float64(13.0)/wp.float64(12.0))*((f0-wp.float64(2.0)*f1+f2)*(f0-wp.float64(2.0)*f1+f2)) + \
+         (wp.float64(1.0)/wp.float64(4.0))*((f0-wp.float64(4.0)*f1+wp.float64(3.0)*f2)*(f0-wp.float64(4.0)*f1+wp.float64(3.0)*f2))
+    b1 = (wp.float64(13.0)/wp.float64(12.0))*((f1-wp.float64(2.0)*f2+f3)*(f1-wp.float64(2.0)*f2+f3)) + \
+         (wp.float64(1.0)/wp.float64(4.0))*((f1-f3)*(f1-f3))
+    b2 = (wp.float64(13.0)/wp.float64(12.0))*((f2-wp.float64(2.0)*f3+f4)*(f2-wp.float64(2.0)*f3+f4)) + \
+         (wp.float64(1.0)/wp.float64(4.0))*((wp.float64(3.0)*f2-wp.float64(4.0)*f3+f4)*(wp.float64(3.0)*f2-wp.float64(4.0)*f3+f4))
+    tau5 = wp.abs(b0 - b2)
+    a0 = wp.float64(0.1) * (wp.float64(1.0) + tau5 / (b0 + eps))
+    a1 = wp.float64(0.6) * (wp.float64(1.0) + tau5 / (b1 + eps))
+    a2 = wp.float64(0.3) * (wp.float64(1.0) + tau5 / (b2 + eps))
+    return (a0*q0 + a1*q1 + a2*q2) / (a0 + a1 + a2)
+
+
+@wp.func
+def weno5z_right_f64(f0: wp.float64, f1: wp.float64, f2: wp.float64, f3: wp.float64, f4: wp.float64) -> wp.float64:
+    eps = wp.float64(1.0e-36)
+    q0 = (wp.float64(11.0)*f2 - wp.float64( 7.0)*f3 + wp.float64(2.0)*f4) / wp.float64(6.0)
+    q1 = (wp.float64( 2.0)*f1 + wp.float64( 5.0)*f2 - wp.float64(1.0)*f3) / wp.float64(6.0)
+    q2 = (wp.float64(-1.0)*f0 + wp.float64( 5.0)*f1 + wp.float64(2.0)*f2) / wp.float64(6.0)
+    b0 = (wp.float64(13.0)/wp.float64(12.0))*((f2-wp.float64(2.0)*f3+f4)*(f2-wp.float64(2.0)*f3+f4)) + \
+         (wp.float64(1.0)/wp.float64(4.0))*((wp.float64(3.0)*f2-wp.float64(4.0)*f3+f4)*(wp.float64(3.0)*f2-wp.float64(4.0)*f3+f4))
+    b1 = (wp.float64(13.0)/wp.float64(12.0))*((f1-wp.float64(2.0)*f2+f3)*(f1-wp.float64(2.0)*f2+f3)) + \
+         (wp.float64(1.0)/wp.float64(4.0))*((f1-f3)*(f1-f3))
+    b2 = (wp.float64(13.0)/wp.float64(12.0))*((f0-wp.float64(2.0)*f1+f2)*(f0-wp.float64(2.0)*f1+f2)) + \
+         (wp.float64(1.0)/wp.float64(4.0))*((f0-wp.float64(4.0)*f1+wp.float64(3.0)*f2)*(f0-wp.float64(4.0)*f1+wp.float64(3.0)*f2))
+    tau5 = wp.abs(b0 - b2)
+    a0 = wp.float64(0.3) * (wp.float64(1.0) + tau5 / (b0 + eps))
+    a1 = wp.float64(0.6) * (wp.float64(1.0) + tau5 / (b1 + eps))
+    a2 = wp.float64(0.1) * (wp.float64(1.0) + tau5 / (b2 + eps))
+    return (a0*q0 + a1*q1 + a2*q2) / (a0 + a1 + a2)
