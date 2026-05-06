@@ -1,5 +1,5 @@
 """
-Warp CUDA graph vs JaxFluids fair — comparison plots for Sod and Shu-Osher.
+Warp CUDA graph vs JaxFluids — comparison plots for Sod and Shu-Osher.
 Generates one figure per case: throughput panel + ratio panel.
 
 Run from examples/warplabs_fluids/:
@@ -76,15 +76,15 @@ for case in CASES:
     # ── Throughput panel ──────────────────────────────────────────────────────
     ax_tp.plot(n32, w32, "^-",  color="#009e73", lw=2, ms=7, label="Warp f32 (CUDA graph)")
     ax_tp.plot(n32, j32, "o--", color="#009e73", lw=2, ms=7, alpha=0.75,
-               label="JaxFluids f32 (fair)")
+               label="JaxFluids f32")
     ax_tp.plot(n64, w64, "s-",  color="#0072b2", lw=2, ms=7, label="Warp f64 (CUDA graph)")
     ax_tp.plot(n64, j64, "o--", color="#0072b2", lw=2, ms=7, alpha=0.75,
-               label="JaxFluids f64 (fair)")
+               label="JaxFluids f64")
 
     ax_tp.set_xscale("log", base=2)
     ax_tp.set_yscale("log", base=2)
     ax_tp.set_ylabel("Throughput  (Mcell-updates / s)", fontsize=11)
-    ax_tp.set_title(f"{case['title']}  —  Warp CUDA Graph vs JaxFluids (fair)", fontsize=12)
+    ax_tp.set_title(f"{case['title']}  —  Warp CUDA Graph vs JaxFluids", fontsize=12)
     ax_tp.legend(fontsize=9)
     ax_tp.grid(True, which="both", lw=0.4, alpha=0.5)
 
