@@ -179,6 +179,71 @@ def bench_jaxfluids(N, case_tmpl, num_path, tmp_dir):
         return None
 
 
+# ── JaxFluids fair benchmark (do_integration_step loop, single sync) ──────────
+
+_JXF_WORKER_FAIR = """
+import json, os, shutil, statistics, sys, tempfile, time
+os.environ["XLA_PYTHON_CLIENT_PREALLOCATE"] = "false"
+os.environ["JAX_PLATFORMS"] = "cuda"
+args  = json.loads(sys.argv[1])
+case_tmpl, num_path_s, N, N_BENCH, N_STEPS = (
+    args["case_tmpl"], args["num_path"], args["N"],
+    args["N_BENCH"], args["N_STEPS"])
+import jax
+from jaxfluids import InputManager, InitializationManager, SimulationManager
+from jaxfluids.data_types.ml_buffers import ParametersSetup, CallablesSetup
+from pathlib import Path
+with tempfile.TemporaryDirectory(prefix=f"jxf_fair_{N}_") as td:
+    td = Path(td)
+    case = json.loads(json.dumps(case_tmpl))
+    case["domain"]["x"]["cells"] = N
+    case["general"]["save_path"] = str(td)
+    case["general"]["save_dt"]   = 999.0
+    cp = td / "case.json"; cp.write_text(json.dumps(case))
+    shutil.copy(num_path_s, td / "numerical_setup.json")
+    im  = InputManager(str(cp), str(td / "numerical_setup.json"))
+    ini = InitializationManager(im)
+    sim = SimulationManager(im)
+    ml_params    = ParametersSetup()
+    ml_callables = CallablesSetup()
+    buf = ini.initialization()
+    cfp = sim.compute_control_flow_params(buf.time_control_variables, buf.step_information)
+    buf, _ = sim.do_integration_step(buf, cfp, ml_params, ml_callables)
+    jax.block_until_ready(buf.simulation_buffers.material_fields.primitives)
+    times = []
+    for _ in range(N_BENCH):
+        buf = ini.initialization()
+        t0 = time.perf_counter()
+        for _ in range(N_STEPS):
+            buf, _ = sim.do_integration_step(buf, cfp, ml_params, ml_callables)
+        jax.block_until_ready(buf.simulation_buffers.material_fields.primitives)
+        times.append(time.perf_counter() - t0)
+print(json.dumps({"tp": N * N_STEPS / statistics.median(times) / 1e6}))
+"""
+
+
+def bench_jaxfluids_fair(N, case_tmpl, num_path, tmp_dir):
+    args = json.dumps({
+        "case_tmpl": case_tmpl, "num_path": str(num_path),
+        "N": N, "N_BENCH": N_BENCH, "N_STEPS": N_STEPS,
+    })
+    worker = tmp_dir / "_jxf_fair_worker.py"
+    worker.write_text(_JXF_WORKER_FAIR)
+    try:
+        r = subprocess.run(
+            [sys.executable, str(worker), args],
+            capture_output=True, text=True,
+            timeout=MAX_WALL_S,
+            env={**os.environ, "XLA_PYTHON_CLIENT_PREALLOCATE": "false",
+                 "JAX_PLATFORMS": "cuda"},
+        )
+        if r.returncode != 0:
+            return None
+        return json.loads(r.stdout.strip())["tp"]
+    except (subprocess.TimeoutExpired, Exception):
+        return None
+
+
 # ── Main ──────────────────────────────────────────────────────────────────────
 
 def main():
@@ -212,9 +277,11 @@ def main():
         "warp_f32", "warp_f32_graph",
         "warp_f64", "warp_f64_graph",
         "jxf_f32",  "jxf_f64",
+        "jxf_f32_fair", "jxf_f64_fair",
     ]}
 
-    hdr = f"{'N':>8}  {'w_f32':>12}  {'w_f32_gr':>12}  {'w_f64':>12}  {'w_f64_gr':>12}  {'jxf_f32':>10}  {'jxf_f64':>10}"
+    hdr = (f"{'N':>8}  {'w_f32':>12}  {'w_f32_gr':>12}  {'w_f64':>12}  {'w_f64_gr':>12}"
+           f"  {'jxf_f32':>10}  {'jxf_f64':>10}  {'jxf_f32_fair':>13}  {'jxf_f64_fair':>13}")
     print(f"\n{hdr}")
     print("-" * len(hdr))
 
@@ -234,10 +301,16 @@ def main():
                 print(f"  {key} N={N} ERROR: {ex}")
                 row[key] = None
 
-        for key, num_path in [("jxf_f32", num_path_f32), ("jxf_f64", num_path_f64)]:
+        for key, num_path, fair in [
+            ("jxf_f32",      num_path_f32, False),
+            ("jxf_f64",      num_path_f64, False),
+            ("jxf_f32_fair", num_path_f32, True),
+            ("jxf_f64_fair", num_path_f64, True),
+        ]:
             if jxf_ok and N <= JXF_MAX_N:
                 try:
-                    row[key] = bench_jaxfluids(N, case_tmpl, num_path, tmp_dir)
+                    fn = bench_jaxfluids_fair if fair else bench_jaxfluids
+                    row[key] = fn(N, case_tmpl, num_path, tmp_dir)
                 except Exception as ex:
                     print(f"  {key} N={N} ERROR: {ex}")
                     row[key] = None
@@ -249,9 +322,11 @@ def main():
 
         def _f(v): return f"{v:>12.2f}" if v is not None else f"{'--':>12}"
         def _g(v): return f"{v:>10.2f}" if v is not None else f"{'--':>10}"
+        def _h(v): return f"{v:>13.2f}" if v is not None else f"{'--':>13}"
         print(f"{N:>8}  {_f(row['warp_f32'])}  {_f(row['warp_f32_graph'])}  "
               f"{_f(row['warp_f64'])}  {_f(row['warp_f64_graph'])}  "
-              f"{_g(row['jxf_f32'])}  {_g(row['jxf_f64'])}", flush=True)
+              f"{_g(row['jxf_f32'])}  {_g(row['jxf_f64'])}  "
+              f"{_h(row['jxf_f32_fair'])}  {_h(row['jxf_f64_fair'])}", flush=True)
 
     if tmp_dir:
         import shutil; shutil.rmtree(tmp_dir, ignore_errors=True)
@@ -262,12 +337,14 @@ def main():
         w = csv.writer(f)
         w.writerow(["N", "warp_f32_Mcells", "warp_f32_graph_Mcells",
                     "warp_f64_Mcells", "warp_f64_graph_Mcells",
-                    "jxf_f32_Mcells",  "jxf_f64_Mcells"])
+                    "jxf_f32_Mcells",  "jxf_f64_Mcells",
+                    "jxf_f32_fair_Mcells", "jxf_f64_fair_Mcells"])
         for i, N in enumerate(GRID_SIZES):
             def _v(k): return f"{results[k][i]:.4f}" if results[k][i] is not None else ""
             w.writerow([N, _v("warp_f32"), _v("warp_f32_graph"),
                            _v("warp_f64"), _v("warp_f64_graph"),
-                           _v("jxf_f32"),  _v("jxf_f64")])
+                           _v("jxf_f32"),  _v("jxf_f64"),
+                           _v("jxf_f32_fair"), _v("jxf_f64_fair")])
     print(f"\nSaved -> {csv_path}")
 
     # ── Plot ──────────────────────────────────────────────────────────────────
@@ -283,8 +360,10 @@ def main():
         "warp_f32_graph": ("^--", "#00c896", "Warp f32 (CUDA graph)"),
         "warp_f64":       ("s-",  "#0072b2", "Warp f64 (baseline)"),
         "warp_f64_graph": ("s--", "#56b4e9", "Warp f64 (CUDA graph)"),
-        "jxf_f32":        ("D-",  "#e07b00", "JaxFluids f32"),
-        "jxf_f64":        ("D--", "#cc3311", "JaxFluids f64"),
+        "jxf_f32":        ("D-",  "#e07b00", "JaxFluids f32 (as-shipped)"),
+        "jxf_f64":        ("D--", "#cc3311", "JaxFluids f64 (as-shipped)"),
+        "jxf_f32_fair":   ("o-",  "#e07b00", "JaxFluids f32 (no per-step sync)"),
+        "jxf_f64_fair":   ("o--", "#cc3311", "JaxFluids f64 (no per-step sync)"),
     }
 
     all_n = set()
@@ -292,7 +371,10 @@ def main():
         ns = [n for n, v in zip(GRID_SIZES, results[key]) if v is not None]
         vs = [v for v in results[key] if v is not None]
         if ns:
-            ax.plot(ns, vs, marker, color=color, lw=1.8, ms=7, label=label)
+            lw = 1.8; alpha = 1.0
+            if "fair" not in key and key.startswith("jxf"):
+                lw = 1.2; alpha = 0.5
+            ax.plot(ns, vs, marker, color=color, lw=lw, ms=7, label=label, alpha=alpha)
             all_n.update(ns)
 
     ax.set_xscale("log", base=2)
