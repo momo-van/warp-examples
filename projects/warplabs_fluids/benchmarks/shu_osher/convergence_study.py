@@ -11,7 +11,7 @@ Saves (to benchmarks/shu_osher/):
   shu_osher_convergence.png
   convergence.csv
 
-Run from examples/warplabs_fluids/:
+Run from projects/warplabs_fluids/:
   python benchmarks/shu_osher/convergence_study.py
 """
 

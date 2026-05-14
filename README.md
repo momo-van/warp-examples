@@ -1,8 +1,8 @@
-# Warp Examples
+# Warp Projects
 
-A collection of GPU-accelerated examples built on [NVIDIA Warp](https://github.com/NVIDIA/warp) — exploring **computational physics** and **geometry processing** through custom CUDA kernels authored in Python.
+A collection of GPU-accelerated projects built on [NVIDIA Warp](https://github.com/NVIDIA/warp) — exploring **computational physics** and **geometry processing** through custom CUDA kernels authored in Python.
 
-Each example lives in its own subfolder under `examples/` with its own code, assets, and tests.
+Each project lives in its own subfolder under `projects/` with its own code, assets, and tests.
 
 ---
 
@@ -30,39 +30,39 @@ Each example lives in its own subfolder under `examples/` with its own code, ass
 pip install warp-lang numpy
 ```
 
-Additional per-example dependencies are listed in each example's own `README.md`.
+Additional per-project dependencies are listed in each project's own `README.md`.
 
 ---
 
-## Examples
+## Projects
 
-| Example | Domain | Description |
+| Project | Domain | Description |
 |---|---|---|
-| *(coming soon)* | — | First example in progress |
+| [`warplabs_fluids`](projects/warplabs_fluids/) | Compressible CFD | 1-D Euler solver (WENO5-Z + HLLC + SSP-RK3), validated against JaxFluids. Phase 1 complete. |
 
 ---
 
 ## Running tests
 
-Each example has its own test suite. To run all tests across every example:
+Each project has its own test suite. To run all tests across every project:
 
 ```powershell
-python -m pytest examples/ -v
+python -m pytest projects/ -v
 ```
 
-Or for a specific example:
+Or for a specific project:
 
 ```powershell
-python -m pytest examples/<example_name>/tests/ -v
+python -m pytest projects/<project_name>/tests/ -v
 ```
 
 ---
 
-## Contributing a new example
+## Contributing a new project
 
-1. Create a subfolder: `examples/<your_example>/`
+1. Create a subfolder: `projects/<your_project>/`
 2. Add your Python files and a `tests/` directory
-3. Include a `README.md` inside the subfolder describing what the example demonstrates and how to run it
+3. Include a `README.md` inside the subfolder describing what the project demonstrates and how to run it
 4. Keep all units SI (metres, radians, seconds) unless the problem domain dictates otherwise
 
 ---

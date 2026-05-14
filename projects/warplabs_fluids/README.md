@@ -84,7 +84,7 @@ Warp CUDA throughput: **183× faster** (Sod) and **111× faster** (Shu-Osher) vs
 ## Tests
 
 ```bash
-# From examples/warplabs_fluids/
+# From projects/warplabs_fluids/
 python -m pytest tests/ -v
 ```
 

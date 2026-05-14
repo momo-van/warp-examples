@@ -13,7 +13,7 @@ Outputs:
   cuda_graph_benchmark.csv   — all six columns per N
   cuda_graph_scaling.png     — log-log throughput vs N (all six)
 
-Run from examples/warplabs_fluids/ inside the JaxFluids venv on WSL2:
+Run from projects/warplabs_fluids/ inside the JaxFluids venv on WSL2:
   source /root/venv-jf/bin/activate
   XLA_PYTHON_CLIENT_PREALLOCATE=false python benchmarks/sod/bench_cuda_graph.py
 """

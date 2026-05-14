@@ -3,7 +3,7 @@
 ## What this is
 
 Experimental Warp-native compressible flow solver, living at
-`C:\Vibe Coding\warp-examples\examples\warplabs_fluids\`.
+`C:\Vibe Coding\warp-projects\projects\warplabs_fluids\`.
 
 Goal: port a JAX-based CFD solver to Warp, prove behavioral equivalence via V&V,
 then benchmark to show GPU throughput advantage. Long-term reference: JaxFluids.
@@ -216,7 +216,7 @@ Remaining files (kept for tests): bc.py, flux.py, update.py.
 ## Running
 
 ```powershell
-# From examples/warplabs_fluids/
+# From projects/warplabs_fluids/
 
 # Tests (CPU only, no GPU needed)
 python -m pytest tests/ -v

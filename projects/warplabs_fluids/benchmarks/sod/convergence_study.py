@@ -9,7 +9,7 @@ Saves (to benchmarks/sod/):
   sod_convergence.png
   convergence.csv
 
-Run from examples/warplabs_fluids/:
+Run from projects/warplabs_fluids/:
   source /root/venv-jf/bin/activate   # or omit for Warp-only
   python benchmarks/sod/convergence_study.py
 """

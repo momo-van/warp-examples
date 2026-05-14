@@ -1,11 +1,11 @@
-# Warp Examples — Claude Context
+# Warp Projects — Claude Context
 
 ## Repo
 
-`C:\Vibe Coding\warp-examples` — a growing collection of GPU-accelerated examples built on NVIDIA Warp,
+`C:\Vibe Coding\warp-projects` — a growing collection of GPU-accelerated projects built on NVIDIA Warp,
 focused on computational physics and geometry processing.
 
-GitHub: `momo-van/warp-examples` (private)
+GitHub: `momo-van/warp-projects` (private)
 Owner: mmohajerani@nvidia.com (NVIDIA)
 
 ---
@@ -20,10 +20,10 @@ It is **not** tied to Newton (that lives in `newton-examples`).
 
 ---
 
-## Active example: warplabs-fluids
+## Active project: warplabs-fluids
 
-`examples/warplabs_fluids/` — 1-D compressible Euler solver, Phase 1 complete.
-See `examples/warplabs_fluids/CLAUDE.md` for full context.
+`projects/warplabs_fluids/` — 1-D compressible Euler solver, Phase 1 complete.
+See `projects/warplabs_fluids/CLAUDE.md` for full context.
 
 **Phase 1 status: COMPLETE**
 - WarpEuler1D: WENO3-HLLC-RK2, 1D, float32
@@ -67,7 +67,7 @@ Core install: `pip install warp-lang numpy scipy jax matplotlib`
 ## Running
 
 ```powershell
-cd examples\warplabs_fluids
+cd projects\warplabs_fluids
 python -m pytest tests/ -v                     # all 15 tests
 python benchmarks\compare_sod.py               # Sod accuracy + throughput
 python benchmarks\scaling_benchmark.py         # N-scaling across all backends

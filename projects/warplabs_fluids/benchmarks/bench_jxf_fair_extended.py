@@ -5,7 +5,7 @@ Runs only the fair harness (do_integration_step loop, single sync) at f32+f64.
 Reads existing cuda_graph_benchmark.csv files, fills in the jxf_*_fair columns
 for the extended grid sizes, and writes updated CSVs + PNGs.
 
-Run from examples/warplabs_fluids/ inside the JaxFluids venv on WSL2:
+Run from projects/warplabs_fluids/ inside the JaxFluids venv on WSL2:
   source /root/venv-jf/bin/activate
   XLA_PYTHON_CLIENT_PREALLOCATE=false python benchmarks/bench_jxf_fair_extended.py
 """
